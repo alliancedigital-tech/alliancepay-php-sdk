@@ -1,0 +1,16 @@
+/vendor/
+.env
+.env.local
+.env.testing
+.idea/
+.vscode/
+*.swp
+*.swo
+/build/
+/coverage/
+.phpunit.result.cache
+.php_cs.cache
+.php-cs-fixer.cache
+.DS_Store
+Thumbs.db
+*.log

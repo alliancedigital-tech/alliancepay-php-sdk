@@ -1,0 +1,44 @@
+{
+    "name": "alliance/alliancepay-payment-sdk",
+    "description": "PHP SDK for AlliancePay payment gateway integration.",
+    "version": "1.0.0",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Alliance Dgtl.",
+            "homepage": "https://alliancedgtl.com/"
+        }
+    ],
+    "require": {
+        "php": ">=8.0",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "kelvinmo/simplejwt": "^1.1"
+    },
+    "require-dev": {
+        "guzzlehttp/guzzle": "^7.0",
+        "phpunit/phpunit": "^9.6"
+    },
+    "suggest": {
+        "guzzlehttp/guzzle": "Allows using Guzzle HTTP client for advanced request handling."
+    },
+    "autoload": {
+        "psr-4": {
+            "AlliancePay\\Sdk\\": "lib/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AlliancePay\\Sdk\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "composer/installers": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
