@@ -43,6 +43,7 @@ final class CallbackDTO
         private string $redirectUrl,
         private string $notificationUrl,
         private bool $notificationEncryption,
+        private string $hppPayType,
         private string $hppOrderId,
         private string $hppDirectType,
         private string $merchantRequestId,
@@ -55,11 +56,9 @@ final class CallbackDTO
 
     public static function fromArray(array $data): self
     {
-        if (!empty($data[self::PROPERTY_OPERATION])
-            && is_array($data[self::PROPERTY_OPERATION])
-        ) {
-            $operation = self::applyOperationObject($data[self::PROPERTY_OPERATION]);
-        }
+        $operationData = $data[self::PROPERTY_OPERATION]
+            ?? throw new CallbackException('Operation data is missing');
+        $operation = self::applyOperationObject($operationData);
 
         return new self(
             ecomOrderId: $data[self::PROPERTY_ECOM_ORDER_ID],
@@ -69,6 +68,7 @@ final class CallbackDTO
             redirectUrl: $data[self::PROPERTY_REDIRECT_URL],
             notificationUrl: $data[self::PROPERTY_NOTIFICATION_URL],
             notificationEncryption: $data[self::PROPERTY_NOTIFICATION_ENCRYPTION] ?? false,
+            hppPayType: $data[self::PROPERTY_HPP_PAY_TYPE],
             hppOrderId: $data[self::PROPERTY_HPP_ORDER_ID],
             hppDirectType: $data[self::PROPERTY_HPP_DIRECT_TYPE] ?? '',
             merchantRequestId: $data[self::PROPERTY_MERCHANT_REQUEST_ID],
@@ -99,7 +99,7 @@ final class CallbackDTO
             self::PROPERTY_REDIRECT_URL => $this->redirectUrl,
             self::PROPERTY_NOTIFICATION_URL => $this->notificationUrl,
             self::PROPERTY_NOTIFICATION_ENCRYPTION => $this->notificationEncryption,
-            self::PROPERTY_HPP_PAY_TYPE => $this->hppOrderId,
+            self::PROPERTY_HPP_PAY_TYPE => $this->hppPayType,
             self::PROPERTY_HPP_DIRECT_TYPE => $this->hppDirectType,
             self::PROPERTY_MERCHANT_REQUEST_ID => $this->merchantRequestId,
             self::PROPERTY_CREATE_DATE => $this->createDate,

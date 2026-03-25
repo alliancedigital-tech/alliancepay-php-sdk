@@ -68,11 +68,10 @@ class AuthorizationService
 
        $this->handleResponseErrors($authResult, AuthenticationException::class);
 
-        if (!empty($authResult['body']['jwe'])) {
-            $decryptedAuthData = JweEncryptionService::decrypt(
-                $authorizationDto->getAuthenticationKey(), $authResult['body']['jwe']
-            );
-        }
+        $jwe = $authResult['body']['jwe'] ?? null;
+        $decryptedAuthData = $jwe
+            ? JweEncryptionService::decrypt($authorizationDto->getAuthenticationKey(), $jwe)
+            : [];
 
         $authData = [
             AuthorizationDTO::AUTH_PROPERTY_BASE_URL => $authorizationDto->getBaseUrl(),

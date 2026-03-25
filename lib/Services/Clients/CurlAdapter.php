@@ -36,7 +36,6 @@ class CurlAdapter extends HttpBase implements HttpClientInterface
         foreach ($options['headers'] ?? [] as $key => $value) {
             $headers[] = "$key: $value";
         }
-        $headers[] = 'Content-Type: application/json';
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
         if (!empty($options['body'])) {

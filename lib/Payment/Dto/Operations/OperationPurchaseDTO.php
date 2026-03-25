@@ -166,8 +166,10 @@ class OperationPurchaseDTO
             bankCode: $data[self::PROPERTY_BANK_CODE] ?? null,
             paymentSystem: $data[self::PROPERTY_PAYMENT_SYSTEM] ?? null,
             paymentServiceType: $data[self::PROPERTY_PAYMENT_SERVICE_TYPE] ?? null,
-            notificationEncryption: (bool)$data[self::PROPERTY_NOTIFICATION_ENCRYPTION] ?? false,
-            notificationSignature: (bool)$data[self::PROPERTY_NOTIFICATION_SIGNATURE] ?? false,
+            notificationEncryption: $data[self::PROPERTY_NOTIFICATION_ENCRYPTION]
+                ? (bool)$data[self::PROPERTY_NOTIFICATION_ENCRYPTION] : false,
+            notificationSignature: $data[self::PROPERTY_NOTIFICATION_SIGNATURE]
+                ? (bool)$data[self::PROPERTY_NOTIFICATION_SIGNATURE] : false,
             hppOrderId: $data[self::PROPERTY_HPP_ORDER_ID] ?? '',
             processingTerminalId: $data[self::PROPERTY_PROCESSING_TERMINAL_ID] ?? null,
             processingMerchantId: $data[self::PROPERTY_PROCESSING_MERCHANT_ID] ?? null,

@@ -29,6 +29,7 @@ class CallbackDTOTest extends TestCase
             'notificationUrl' => 'https://site.com/callback',
             'notificationEncryption' => true,
             'hppOrderId' => 'HPP-1001',
+            'hppPayType' => 'PURCHASE',
             'hppDirectType' => 'CARD',
             'merchantRequestId' => 'REQ-001',
             'createDate' => '2026.02.13 10:06:01.927',
@@ -177,6 +178,6 @@ class CallbackDTOTest extends TestCase
         $this->assertArrayHasKey('ecomOrderId', $result);
         $this->assertArrayHasKey('operation', $result);
         $this->assertTrue($result['notificationEncryption']);
-        $this->assertEquals('HPP-1001', $result['hppPayType']);
+        $this->assertEquals('HPP-1001', $result['hppOrderId']);
     }
 }

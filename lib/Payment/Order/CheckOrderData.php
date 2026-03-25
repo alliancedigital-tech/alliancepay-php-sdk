@@ -68,7 +68,7 @@ class CheckOrderData
             );
         } catch (Throwable $e) {
             throw new CheckOrderDataException(
-                message: "An unexpected error occurred during refund",
+                message: "An unexpected error occurred during check order data: " . $e->getMessage(),
                 payload: [],
                 code: 0,
                 previous: $e

@@ -10,11 +10,12 @@ namespace AlliancePay\Sdk\Services\DateTime;
 use DateTimeImmutable;
 use DateTimeZone;
 use Exception;
+use InvalidArgumentException;
 
 /**
  * Class DateTimeImmutableProvider.
  */
-class DateTimeImmutableProvider
+final class DateTimeImmutableProvider
 {
     public const DEFAULT_DATE_TIME_FORMAT = 'Y-m-d H:i:s.vP';
     public const DEFAULT_TIMEZONE = 'UTC';
@@ -28,7 +29,11 @@ class DateTimeImmutableProvider
         return new DateTimeImmutable('now', new DateTimeZone($tz));
     }
 
-    public function defaultDateUtc(): DateTimeImmutable
+    /**
+     * @return DateTimeImmutable
+     * @throws Exception
+     */
+    public static function defaultDateUtc(): DateTimeImmutable
     {
         return new DateTimeImmutable(
             '01-01-1970 00:00:00',
@@ -37,14 +42,20 @@ class DateTimeImmutableProvider
     }
 
     /**
-     * @throws Exception
+     * @param string|null $date
+     * @param string $tz
+     * @return DateTimeImmutable
+     * @throws InvalidArgumentException|Exception
      */
-    public static function fromString(string $date, string $tz): DateTimeImmutable
+    public static function fromString(?string $date, string $tz): DateTimeImmutable
     {
-        return new DateTimeImmutable(
-            self::normalizeDate($date),
-            new DateTimeZone($tz)
-        );
+        $normalized = self::normalizeDate($date);
+
+        if ($normalized === null) {
+            throw new InvalidArgumentException("Date string cannot be empty or null.");
+        }
+
+        return new DateTimeImmutable($normalized, new DateTimeZone($tz));
     }
 
     /**
@@ -53,29 +64,22 @@ class DateTimeImmutableProvider
      */
     protected static function normalizeDate(?string $dateString): ?string
     {
-        if (empty($dateString)) {
+        if ($dateString === null || trim($dateString) === '') {
             return null;
         }
 
-        try {
-            $dateString = trim((string)$dateString);
+        $normalized = trim($dateString);
 
-            if (preg_match('/^(\d{4})\.(\d{2})\.(\d{2})/', $dateString, $matches)) {
-                $datePart = "{$matches[1]}-{$matches[2]}-{$matches[3]}";
-                $timePart = substr($dateString, 10);
-                $normalized = $datePart . $timePart;
-            } else {
-                $normalized = $dateString;
-            }
-
-            if (preg_match('/ (\+|\-)\d{4}$/', $normalized)) {
-                $normalized = preg_replace('/ (\+|\-)(\d{4})$/', '$1$2', $normalized);
-            }
-
-            return $normalized;
-
-        } catch (Exception $e) {
-            return null;
+        if (preg_match('/^(\d{4})\.(\d{2})\.(\d{2})/', $normalized, $matches)) {
+            $datePart = "{$matches[1]}-{$matches[2]}-{$matches[3]}";
+            $timePart = (strlen($normalized) > 10) ? substr($normalized, 10) : '';
+            $normalized = $datePart . $timePart;
         }
+
+        if (preg_match('/ (\+|\-)\d{4}$/', $normalized)) {
+            $normalized = preg_replace('/ (\+|\-)(\d{4})$/', '$1$2', $normalized);
+        }
+
+        return $normalized;
     }
 }

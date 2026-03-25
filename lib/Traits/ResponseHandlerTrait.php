@@ -45,6 +45,8 @@ trait ResponseHandlerTrait
         } elseif ($msgType === 'VALIDATION_ERROR') {
             $errors = json_encode($body['validation']['errors'] ?? [], JSON_UNESCAPED_UNICODE);
             $errorMessage = 'Validation failed: ' . $baseInfo . '. Details: ' . $errors;
+        } elseif (empty($body)) {
+            $errorMessage = 'Validation failed: ' . $baseInfo . ' No data received in body.';
         }
 
         if ($errorMessage !== '') {
