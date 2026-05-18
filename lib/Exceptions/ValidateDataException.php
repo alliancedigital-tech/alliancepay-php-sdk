@@ -10,7 +10,7 @@ namespace AlliancePay\Sdk\Exceptions;
 use AlliancePay\Sdk\Exceptions\AlliancePayException;
 
 /**
- * Class ValidateOrderDataException.
+ * Class ValidateDataException.
  */
 class ValidateDataException extends AlliancePayException
 {
