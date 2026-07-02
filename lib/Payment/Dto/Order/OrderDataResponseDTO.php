@@ -96,8 +96,9 @@ final class OrderDataResponseDTO
                 ?? throw new AlliancePayException('Operation type is missing');
 
             $preparedOperations[] = match ($type) {
-                OperationPurchaseDTO::OPERATION_TYPE => OperationPurchaseDTO::fromArray($operation),
-                OperationRefundDTO::OPERATION_TYPE   => OperationRefundDTO::fromArray($operation),
+                OperationPurchaseDTO::OPERATION_TYPE,
+                OperationPurchaseDTO::OPERATION_TYPE_A2A => OperationPurchaseDTO::fromArray($operation),
+                OperationRefundDTO::OPERATION_TYPE => OperationRefundDTO::fromArray($operation),
                 default => throw new AlliancePayException('Unknown operation type: ' . $type),
             };
         }
@@ -238,7 +239,15 @@ final class OrderDataResponseDTO
             self::PROPERTY_PAYMENT_METHODS => $this->paymentMethods,
             self::PROPERTY_CREATE_DATE =>
                 $this->createDate?->format(DateTimeImmutableProvider::DEFAULT_DATE_TIME_FORMAT),
-            self::PROPERTY_OPERATIONS => $this->operations,
+            self::PROPERTY_OPERATIONS => $this->prepareOperations(),
         ];
+    }
+
+    /**
+     * @return array
+     */
+    private function prepareOperations(): array
+    {
+        return array_map(fn($operation) => $operation->toArray(), $this->operations);
     }
 }

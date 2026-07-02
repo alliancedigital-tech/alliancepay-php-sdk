@@ -38,7 +38,8 @@ class ValidateOrderData
         'purpose',
         'priorityBankCode',
         'paymentCategoryGoal',
-        'generateQrNbu'
+        'generateQrNbu',
+        'hppPageAdditionalInfo',
     ];
 
     // Kept for backwards compatibility
@@ -85,6 +86,13 @@ class ValidateOrderData
         'directType' => [
             'type' => 'string',
             'required' => false,
+            'value_map' => [
+                'field' => 'hppPayType',
+                'map' => [
+                    'A2A'      => 'BANK_LINK',
+                    'PURCHASE' => 'REDIRECT',
+                ],
+            ],
         ],
         'hppTryMode' => [
             'type' => 'string',
@@ -94,6 +102,8 @@ class ValidateOrderData
             'type' => 'int',
             'maxDigits' => 4,
             'required' => false,
+            'min' => 60,
+            'max' => 1440,
         ],
         'coinAmount' => [
             'type' => 'int',
@@ -140,6 +150,7 @@ class ValidateOrderData
             'type' => 'string',
             'maxLength' => 255,
             'required' => false,
+            'required_if' => ['field' => 'hppPayType', 'value' => 'A2A'],
         ],
         'priorityBankCode' => [
             'type' => 'string',
@@ -152,6 +163,25 @@ class ValidateOrderData
         'generateQrNbu' => [
             'type' => 'boolean',
             'required' => false,
+        ],
+        'hppPageAdditionalInfo' => [
+            'type' => 'array',
+            'required' => false,
+            'properties' => [
+                'productsSum' => [
+                    'type' => 'int',
+                    'required' => false,
+                ],
+                'products' => [
+                    'type' => 'array',
+                    'required' => false,
+                    'items' => [
+                        'name' => ['type' => 'string', 'required' => true],
+                        'count' => ['type' => 'int', 'required' => true],
+                        'sum' => ['type' => 'int', 'required' => true],
+                    ],
+                ],
+            ],
         ],
         'customerData' => [
             'type' => 'array',
@@ -183,9 +213,9 @@ class ValidateOrderData
                     'required' => false,
                 ],
                 'senderCountry' => [
-                    'type'    => 'string',
+                    'type' => 'string',
                     'maxLength' => 3,
-                    'format'  => 'iso3166-1-numeric',
+                    'format' => 'iso3166-1-numeric',
                     'required' => false,
                 ],
                 'senderRegion' => [
@@ -224,16 +254,16 @@ class ValidateOrderData
                     'required' => false,
                 ],
                 'senderPhone' => [
-                    'type'      => 'string',
+                    'type' => 'string',
                     'maxLength' => 20,
-                    'format'    => 'digits-only',
-                    'required'  => false,
+                    'format' => 'digits-only',
+                    'required' => false,
                 ],
                 'senderBirthday' => [
-                    'type'      => 'string',
+                    'type' => 'string',
                     'maxLength' => 50,
-                    'format'    => 'date-dmy',
-                    'required'  => false,
+                    'format' => 'date-dmy',
+                    'required' => false,
                 ],
                 'senderGender' => [
                     'type' => 'string',
@@ -265,7 +295,6 @@ class ValidateOrderData
 
             if ($rule['required'] === true && self::isEmpty($value)) {
                 $errors[] = ['field' => $field, 'message' => 'cannot be empty'];
-                // Do not skip — nested required fields must still be reported
             }
 
             if (!self::isEmpty($value)) {
@@ -273,10 +302,45 @@ class ValidateOrderData
             }
 
             if (isset($rule['properties'])) {
-                // Validate nested properties even when customerData is missing/empty
                 $nestedData = is_array($value) ? $value : [];
                 $nestedErrors = self::validateProperties($nestedData, $rule['properties']);
                 $errors = array_merge($errors, $nestedErrors);
+            }
+
+            if (isset($rule['required_if'])) {
+                $condField = $rule['required_if']['field'];
+                $condValue = $rule['required_if']['value'];
+
+                if (($orderData[$condField] ?? null) === $condValue && self::isEmpty($orderData[$field] ?? null)) {
+                    $errors[] = [
+                        'field' => $field,
+                        'message' => 'cannot be empty when ' . $condField . ' = ' . $condValue,
+                    ];
+                }
+            }
+
+            if (isset($rule['value_map'])) {
+                $condField = $rule['value_map']['field'];
+                $condFieldValue = $orderData[$condField] ?? null;
+
+                if ($condFieldValue !== null && isset($rule['value_map']['map'][$condFieldValue])) {
+                    $expectedValue = $rule['value_map']['map'][$condFieldValue];
+                    $actualValue = $orderData[$field] ?? null;
+
+                    if (self::isEmpty($actualValue)) {
+                        $errors[] = [
+                            'field' => $field,
+                            'message' => 'cannot be empty when ' . $condField . ' = ' . $condFieldValue
+                                . ', expected: ' . $expectedValue,
+                        ];
+                    } elseif ($actualValue !== $expectedValue) {
+                        $errors[] = [
+                            'field' => $field,
+                            'message' => 'invalid value for ' . $condField . ' = ' . $condFieldValue
+                                . ', expected: ' . $expectedValue,
+                        ];
+                    }
+                }
             }
         }
 
@@ -329,7 +393,7 @@ class ValidateOrderData
 
         if (isset($rule['maxLength']) && is_string($value) && mb_strlen($value) > $rule['maxLength']) {
             $errors[] = [
-                'field'   => $field,
+                'field' => $field,
                 'message' => 'exceeds maxLength of ' . $rule['maxLength'],
             ];
         }
@@ -338,10 +402,31 @@ class ValidateOrderData
             $digits = strlen((string)(int)$value);
             if ($digits > $rule['maxDigits']) {
                 $errors[] = [
-                    'field'   => $field,
+                    'field' => $field,
                     'message' => 'exceeds maxDigits of ' . $rule['maxDigits'],
                 ];
             }
+        }
+
+        if (isset($rule['min']) && is_int($value) && $value < $rule['min']) {
+            $errors[] = [
+                'field' => $field,
+                'message' => 'must be at least ' . $rule['min'],
+            ];
+        }
+
+        if (isset($rule['max']) && is_int($value) && $value > $rule['max']) {
+            $errors[] = [
+                'field' => $field,
+                'message' => 'must be at most ' . $rule['max'],
+            ];
+        }
+
+        if (isset($rule['variants']) && is_string($value) && !in_array($value, $rule['variants'], true)) {
+            $errors[] = [
+                'field' => $field,
+                'message' => 'invalid value, allowed: ' . implode(', ', $rule['variants']),
+            ];
         }
 
         if (isset($rule['format'])) {
@@ -420,6 +505,32 @@ class ValidateOrderData
 
             if (!self::isEmpty($value)) {
                 $errors = array_merge($errors, self::validateFieldValue($field, $value, $rule));
+            }
+
+            if (isset($rule['items']) && is_array($value)) {
+                foreach ($value as $index => $item) {
+                    if (!is_array($item)) {
+                        $errors[] = [
+                            'field' => $field . '[' . $index . ']',
+                            'message' => 'must be an array',
+                        ];
+                        continue;
+                    }
+
+                    foreach ($rule['items'] as $itemField => $itemRule) {
+                        $itemValue = $item[$itemField] ?? null;
+                        $itemKey = $field . '[' . $index . '].' . $itemField;
+
+                        if ($itemRule['required'] === true && self::isEmpty($itemValue)) {
+                            $errors[] = ['field' => $itemKey, 'message' => 'cannot be empty'];
+                            continue;
+                        }
+
+                        if (!self::isEmpty($itemValue)) {
+                            $errors = array_merge($errors, self::validateFieldValue($itemKey, $itemValue, $itemRule));
+                        }
+                    }
+                }
             }
         }
 

@@ -129,7 +129,8 @@ class CallbackDTOTest extends TestCase
         $dto = CallbackDTO::fromArray($data);
 
         $this->assertInstanceOf(CallbackDTO::class, $dto);
-        $this->assertInstanceOf(OperationPurchaseDTO::class, $dto->toArray()['operation']);
+        $this->assertIsArray($dto->toArray()['operation']);
+        $this->assertSame(OperationPurchaseDTO::OPERATION_TYPE, $dto->toArray()['operation']['type']);
         $this->assertSame('ECOM-12345', $data['ecomOrderId']);
         $this->assertInstanceOf(\DateTimeImmutable::class, $dto->toArray()['createDate']);
     }
@@ -144,7 +145,8 @@ class CallbackDTOTest extends TestCase
 
         $dto = CallbackDTO::fromArray($data);
         $this->assertInstanceOf(CallbackDTO::class, $dto);
-        $this->assertInstanceOf(OperationRefundDTO::class, $dto->toArray()['operation']);
+        $this->assertIsArray($dto->toArray()['operation']);
+        $this->assertSame(OperationRefundDTO::OPERATION_TYPE, $dto->toArray()['operation']['type']);
         $this->assertSame('ECOM-12345', $data['ecomOrderId']);
         $this->assertInstanceOf(\DateTimeImmutable::class, $dto->toArray()['createDate']);
     }

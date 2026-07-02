@@ -110,10 +110,11 @@ class OperationRefundDTO
                 $data[self::PROPERTY_MODIFICATION_DATE_TIME],
                 DateTimeImmutableProvider::DEFAULT_TIMEZONE
             ),
-            processingDateTime: DateTimeImmutableProvider::fromString(
+            processingDateTime: !empty($data[self::PROPERTY_PROCESSING_DATE_TIME])
+                ? DateTimeImmutableProvider::fromString(
                 $data[self::PROPERTY_PROCESSING_DATE_TIME],
                 DateTimeImmutableProvider::DEFAULT_TIMEZONE
-            ),
+            ) : null,
             transactionResponseInfo: $data[self::PROPERTY_TRANSACTION_RESPONSE_INFO] ?? [],
             bankCode: $data[self::PROPERTY_BANK_CODE] ?? null,
             paymentSystem: $data[self::PROPERTY_PAYMENT_SYSTEM] ?? null,

@@ -20,14 +20,15 @@ class ValidateOrderDataTest extends TestCase
     {
         return [
             'merchantRequestId' => '99999999-1111-1111-9999-999999999999',
-            'merchantId'        => '99999999-1111-1111-9999-999999999999',
-            'hppPayType'        => 'PURCHASE',
-            'coinAmount'        => 2000,
-            'paymentMethods'    => ['CARD'],
-            'successUrl'        => 'https://example.com/success',
-            'failUrl'           => 'https://example.com/fail',
-            'statusPageType'    => 'DEFAULT',
-            'customerData'      => [
+            'merchantId' => '99999999-1111-1111-9999-999999999999',
+            'hppPayType' => 'PURCHASE',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 2000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://example.com/success',
+            'failUrl' => 'https://example.com/fail',
+            'statusPageType' => 'DEFAULT',
+            'customerData' => [
                 'senderCustomerId' => 'cust_1',
             ],
         ];
@@ -338,5 +339,244 @@ class ValidateOrderDataTest extends TestCase
             $fields = array_column($e->getPayload(), 'field');
             $this->assertContains('senderBirthday', $fields);
         }
+    }
+
+    /**
+     * @return void
+     */
+    public function test_it_throws_exception_if_expiration_time_below_min(): void
+    {
+        $data = $this->validOrderData();
+        $data['expirationTimeMinutes'] = 59;
+
+        try {
+            ValidateOrderData::validateOrderRequiredData($data);
+            $this->fail('Expected ValidateDataException was not thrown.');
+        } catch (ValidateDataException $e) {
+            $fields = array_column($e->getPayload(), 'field');
+            $this->assertContains('expirationTimeMinutes', $fields);
+        }
+    }
+
+    /**
+     * @return void
+     */
+    public function test_it_throws_exception_if_expiration_time_above_max(): void
+    {
+        $data = $this->validOrderData();
+        $data['expirationTimeMinutes'] = 1441;
+
+        try {
+            ValidateOrderData::validateOrderRequiredData($data);
+            $this->fail('Expected ValidateDataException was not thrown.');
+        } catch (ValidateDataException $e) {
+            $fields = array_column($e->getPayload(), 'field');
+            $this->assertContains('expirationTimeMinutes', $fields);
+        }
+    }
+
+    /**
+     * @dataProvider validExpirationTimeProvider
+     * @param int $value
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_it_accepts_expiration_time_at_boundary_values(int $value): void
+    {
+        $data = $this->validOrderData();
+        $data['expirationTimeMinutes'] = $value;
+
+        $result = ValidateOrderData::validateOrderRequiredData($data);
+
+        $this->assertSame($value, $result['expirationTimeMinutes']);
+    }
+
+    /**
+     * @return array<string, array{int}>
+     */
+    public static function validExpirationTimeProvider(): array
+    {
+        return [
+            'minimum boundary (60)' => [60],
+            'maximum boundary (1440)' => [1440],
+            'middle value (720)' => [720],
+        ];
+    }
+
+    /**
+     * @return void
+     */
+    public function test_it_throws_exception_if_merchant_comment_empty_for_a2a(): void
+    {
+        $data = $this->validOrderData();
+        $data['hppPayType'] = 'A2A';
+        $data['directType'] = 'BANK_LINK';
+
+        try {
+            ValidateOrderData::validateOrderRequiredData($data);
+            $this->fail('Expected ValidateDataException was not thrown.');
+        } catch (ValidateDataException $e) {
+            $payload = $e->getPayload();
+            $fields = array_column($payload, 'field');
+            $this->assertContains('merchantComment', $fields);
+
+            $entry = array_values(array_filter($payload, fn($p) => $p['field'] === 'merchantComment'))[0];
+            $this->assertStringContainsString('A2A', $entry['message']);
+        }
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_it_accepts_merchant_comment_for_a2a(): void
+    {
+        $data = $this->validOrderData();
+        $data['hppPayType'] = 'A2A';
+        $data['directType'] = 'BANK_LINK';
+        $data['merchantComment'] = 'Order comment for A2A payment';
+
+        $result = ValidateOrderData::validateOrderRequiredData($data);
+
+        $this->assertSame('Order comment for A2A payment', $result['merchantComment']);
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_it_does_not_require_merchant_comment_for_non_a2a(): void
+    {
+        $data = $this->validOrderData();
+        // hppPayType = 'PURCHASE' by default, no merchantComment provided
+        $data['directType'] = 'REDIRECT';
+
+        $result = ValidateOrderData::validateOrderRequiredData($data);
+
+        $this->assertArrayNotHasKey('merchantComment', $result);
+    }
+
+    /**
+     * @return void
+     */
+    public function test_it_throws_exception_if_direct_type_has_invalid_variant(): void
+    {
+        $data = $this->validOrderData();
+        $data['directType'] = 'INVALID_TYPE';
+
+        try {
+            ValidateOrderData::validateOrderRequiredData($data);
+            $this->fail('Expected ValidateDataException was not thrown.');
+        } catch (ValidateDataException $e) {
+            $fields = array_column($e->getPayload(), 'field');
+            $this->assertContains('directType', $fields);
+        }
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_it_accepts_valid_direct_type_bank_link(): void
+    {
+        $data = $this->validOrderData();
+        $data['hppPayType'] = 'A2A';
+        $data['directType'] = 'BANK_LINK';
+        $data['merchantComment'] = 'A2A order comment';
+
+        $result = ValidateOrderData::validateOrderRequiredData($data);
+
+        $this->assertSame('BANK_LINK', $result['directType']);
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_it_accepts_valid_direct_type_redirect(): void
+    {
+        $data = $this->validOrderData();
+        $data['hppPayType'] = 'PURCHASE';
+        $data['directType'] = 'REDIRECT';
+
+        $result = ValidateOrderData::validateOrderRequiredData($data);
+
+        $this->assertSame('REDIRECT', $result['directType']);
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_it_accepts_valid_hpp_page_additional_info(): void
+    {
+        $data = $this->validOrderData();
+        $data['hppPageAdditionalInfo'] = [
+            'productsSum' => 3000,
+            'products' => [
+                ['name' => 'Product A', 'count' => 2, 'sum' => 1000],
+                ['name' => 'Product B', 'count' => 1, 'sum' => 2000],
+            ],
+        ];
+
+        $result = ValidateOrderData::validateOrderRequiredData($data);
+
+        $this->assertSame(3000, $result['hppPageAdditionalInfo']['productsSum']);
+        $this->assertCount(2, $result['hppPageAdditionalInfo']['products']);
+    }
+
+    /**
+     * @return void
+     */
+    public function test_it_throws_exception_if_product_item_missing_required_field(): void
+    {
+        $data = $this->validOrderData();
+        $data['hppPageAdditionalInfo'] = [
+            'products' => [
+                ['count' => 3, 'sum' => 1000], // missing 'name'
+            ],
+        ];
+
+        try {
+            ValidateOrderData::validateOrderRequiredData($data);
+            $this->fail('Expected ValidateDataException was not thrown.');
+        } catch (ValidateDataException $e) {
+            $fields = array_column($e->getPayload(), 'field');
+            $this->assertContains('products[0].name', $fields);
+        }
+    }
+
+    /**
+     * @return void
+     */
+    public function test_it_throws_exception_if_product_item_field_has_wrong_type(): void
+    {
+        $data = $this->validOrderData();
+        $data['hppPageAdditionalInfo'] = [
+            'products' => [
+                ['name' => 'Product A', 'count' => 'three', 'sum' => 1000], // count must be int
+            ],
+        ];
+
+        try {
+            ValidateOrderData::validateOrderRequiredData($data);
+            $this->fail('Expected ValidateDataException was not thrown.');
+        } catch (ValidateDataException $e) {
+            $fields = array_column($e->getPayload(), 'field');
+            $this->assertContains('products[0].count', $fields);
+        }
+    }
+
+    /**
+     * @return void
+     */
+    public function test_it_clears_null_hpp_page_additional_info(): void
+    {
+        $data = $this->validOrderData();
+        $data['hppPageAdditionalInfo'] = null;
+
+        $result = ValidateOrderData::clearOrderData($data);
+
+        $this->assertArrayNotHasKey('hppPageAdditionalInfo', $result);
     }
 }

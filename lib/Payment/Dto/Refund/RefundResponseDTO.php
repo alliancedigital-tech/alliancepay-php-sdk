@@ -51,10 +51,8 @@ final class RefundResponseDTO
 
     public function __construct(
         private string $type,
-        private string $rrn,
         private int $coinAmount,
         private string $merchantId,
-        private string $operationId,
         private string $ecomOperationId,
         private string $status,
         private string $merchantRequestId,
@@ -65,6 +63,8 @@ final class RefundResponseDTO
         private string $productType,
         private string $hppOrderId,
         private ?int $transactionType,
+        private ?string $rrn = null,
+        private ?string $operationId = null,
         private ?string $notificationUrl = '',
         private bool $notificationEncryption = false,
         private ?string $rrnOriginal = '',
@@ -72,8 +72,8 @@ final class RefundResponseDTO
         private ?int $originalCoinAmount = 0,
         private ?string $originalEcomOperationId = '',
         private bool $notificationSignature = false,
-        private ?string $processingTerminalId = '',
-        private ?string $processingMerchantId = '',
+        private ?string $processingTerminalId = null,
+        private ?string $processingMerchantId = null,
         private ?string $creatorSystem = '',
         private ?string $merchantName = '',
         private ?string $approvalCode = '',
@@ -93,10 +93,8 @@ final class RefundResponseDTO
     {
         return new self(
             type: $refundData[self::PROPERTY_TYPE],
-            rrn: $refundData[self::PROPERTY_RRN],
             coinAmount: $refundData[self::PROPERTY_COIN_AMOUNT],
             merchantId: $refundData[self::PROPERTY_MERCHANT_ID],
-            operationId: $refundData[self::PROPERTY_OPERATION_ID],
             ecomOperationId: $refundData[self::PROPERTY_ECOM_OPERATION_ID],
             status: $refundData[self::PROPERTY_STATUS],
             merchantRequestId: $refundData[self::PROPERTY_MERCHANT_REQUEST_ID],
@@ -113,15 +111,17 @@ final class RefundResponseDTO
             productType: $refundData[self::PROPERTY_PRODUCT_TYPE],
             hppOrderId: $refundData[self::PROPERTY_HPP_ORDER_ID],
             transactionType: $refundData[self::PROPERTY_TRANSACTION_TYPE],
+            rrn: $refundData[self::PROPERTY_RRN] ?? null,
+            operationId: $refundData[self::PROPERTY_OPERATION_ID] ?? null,
             notificationUrl: $refundData[self::PROPERTY_NOTIFICATION_URL] ?? null,
             notificationEncryption: $refundData[self::PROPERTY_NOTIFICATION_ENCRYPTION],
-            rrnOriginal: $refundData[self::PROPERTY_RRN],
+            rrnOriginal: $refundData[self::PROPERTY_RRN_ORIGINAL] ?? null,
             originalOperationId: $refundData[self::PROPERTY_ORIGINAL_OPERATION_ID],
             originalCoinAmount: $refundData[self::PROPERTY_ORIGINAL_COIN_AMOUNT],
             originalEcomOperationId: $refundData[self::PROPERTY_ORIGINAL_ECOM_OPERATION_ID],
             notificationSignature: $refundData[self::PROPERTY_NOTIFICATION_SIGNATURE],
-            processingTerminalId: $refundData[self::PROPERTY_PROCESSING_TERMINAL_ID],
-            processingMerchantId: $refundData[self::PROPERTY_PROCESSING_MERCHANT_ID],
+            processingTerminalId: $refundData[self::PROPERTY_PROCESSING_TERMINAL_ID] ?? null,
+            processingMerchantId: $refundData[self::PROPERTY_PROCESSING_MERCHANT_ID] ?? null,
             creatorSystem: $refundData[self::PROPERTY_CREATOR_SYSTEM],
             merchantName: $refundData[self::PROPERTY_MERCHANT_NAME] ?? null,
             approvalCode: $refundData[self::PROPERTY_APPROVAL_CODE] ?? null,
@@ -149,9 +149,9 @@ final class RefundResponseDTO
             self::PROPERTY_MERCHANT_REQUEST_ID => $this->merchantRequestId,
             self::PROPERTY_TRANSACTION_CURRENCY => $this->transactionCurrency,
             self::PROPERTY_CREATION_DATE_TIME =>
-                $this->creationDateTime->format(DateTimeImmutableProvider::DEFAULT_TIMEZONE),
+                $this->creationDateTime?->format(DateTimeImmutableProvider::DEFAULT_TIMEZONE),
             self::PROPERTY_MODIFICATION_DATE_TIME =>
-                $this->modificationDateTime->format(DateTimeImmutableProvider::DEFAULT_TIMEZONE),
+                $this->modificationDateTime?->format(DateTimeImmutableProvider::DEFAULT_TIMEZONE),
             self::PROPERTY_TRANSACTION_RESPONSE_INFO => $this->transactionResponseInfo,
             self::PROPERTY_HPP_ORDER_ID => $this->hppOrderId,
             self::PROPERTY_TRANSACTION_TYPE => $this->transactionType,
@@ -185,9 +185,9 @@ final class RefundResponseDTO
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getRrn(): string
+    public function getRrn(): ?string
     {
         return $this->rrn;
     }
@@ -209,9 +209,9 @@ final class RefundResponseDTO
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getOperationId(): string
+    public function getOperationId(): ?string
     {
         return $this->operationId;
     }

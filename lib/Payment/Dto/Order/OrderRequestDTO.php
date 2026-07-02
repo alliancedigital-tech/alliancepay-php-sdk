@@ -35,6 +35,7 @@ final class OrderRequestDTO
     private const PROPERTY_PRIORITY_BANK_CODE = 'priorityBankCode';
     private const PROPERTY_PAYMENT_CATEGORY_GOAL = 'paymentCategoryGoal';
     private const PROPERTY_GENERATE_QR_NBU = 'generateQrNbu';
+    private const PROPERTY_HPP_PAGE_ADDITIONAL_INFO = 'hppPageAdditionalInfo';
 
     public function __construct(
         private string $merchantRequestId,
@@ -57,6 +58,7 @@ final class OrderRequestDTO
         private ?string $priorityBankCode = null,
         private ?string $paymentCategoryGoal = null,
         private bool $generateQrNbu = false,
+        private ?array $hppPageAdditionalInfo = null,
     ) {
 
     }
@@ -126,9 +128,9 @@ final class OrderRequestDTO
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getMerchantComment(): string
+    public function getMerchantComment(): ?string
     {
         return $this->merchantComment;
     }
@@ -139,6 +141,14 @@ final class OrderRequestDTO
     public function getCustomerData(): array
     {
         return $this->customerData;
+    }
+
+    /**
+     * @return array|null
+     */
+    public function getHppPageAdditionalInfo(): ?array
+    {
+        return $this->hppPageAdditionalInfo;
     }
 
     /**
@@ -172,6 +182,7 @@ final class OrderRequestDTO
             priorityBankCode: $orderData[self::PROPERTY_PRIORITY_BANK_CODE] ?? null,
             paymentCategoryGoal: $orderData[self::PROPERTY_PAYMENT_CATEGORY_GOAL] ?? null,
             generateQrNbu: (bool)($orderData[self::PROPERTY_GENERATE_QR_NBU] ?? false),
+            hppPageAdditionalInfo: $orderData[self::PROPERTY_HPP_PAGE_ADDITIONAL_INFO] ?? null,
         );
     }
 
@@ -200,6 +211,7 @@ final class OrderRequestDTO
             self::PROPERTY_PRIORITY_BANK_CODE => $this->priorityBankCode,
             self::PROPERTY_PAYMENT_CATEGORY_GOAL => $this->paymentCategoryGoal,
             self::PROPERTY_GENERATE_QR_NBU => $this->generateQrNbu,
+            self::PROPERTY_HPP_PAGE_ADDITIONAL_INFO => $this->hppPageAdditionalInfo,
         ];
 
         return ValidateOrderData::clearOrderData($data);
