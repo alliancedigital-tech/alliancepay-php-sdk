@@ -17,16 +17,24 @@ class OrderDtoTest extends TestCase
     public function test_order_request_dto_mapping(): void
     {
         $data = [
-            'merchantRequestId' => 'REQ-123',
-            'merchantId' => 'M-777',
-            'hppPayType' => 'PURCHASE',
-            'coinAmount' => 15050,
-            'paymentMethods' => ['CARD'],
-            'successUrl' => 'https://site.com/success',
-            'failUrl' => 'https://site.com/fail',
-            'statusPageType' => 'REDIRECT',
-            'customerData' => ['senderCustomerId' => 'id_1'],
-            'merchantComment' => 'Test Order'
+            'merchantRequestId'    => 'REQ-123',
+            'merchantId'           => 'M-777',
+            'hppPayType'           => 'PURCHASE',
+            'directType'           => 'REDIRECT',
+            'coinAmount'           => 15050,
+            'paymentMethods'       => ['CARD'],
+            'successUrl'           => 'https://site.com/success',
+            'failUrl'              => 'https://site.com/fail',
+            'statusPageType'       => 'REDIRECT',
+            'customerData'         => ['senderCustomerId' => 'id_1'],
+            'merchantComment'      => 'Test Order',
+            'hppPageAdditionalInfo' => [
+                'productsSum' => 5000,
+                'products'    => [
+                    ['name' => 'Widget', 'count' => 2, 'sum' => 2500],
+                    ['name' => 'Gadget', 'count' => 1, 'sum' => 2500],
+                ],
+            ],
         ];
 
         $dto = OrderRequestDTO::fromArray($data);
@@ -34,6 +42,39 @@ class OrderDtoTest extends TestCase
         $this->assertEquals('REQ-123', $dto->getMerchantRequestId());
         $this->assertEquals(15050, $dto->getCoinAmount());
         $this->assertArrayHasKey('senderCustomerId', $dto->toArray()['customerData']);
+        $this->assertSame(5000, $dto->getHppPageAdditionalInfo()['productsSum']);
+        $this->assertCount(2, $dto->getHppPageAdditionalInfo()['products']);
+    }
+
+    public function test_order_request_dto_to_array_includes_hpp_page_additional_info(): void
+    {
+        $hppInfo = [
+            'productsSum' => 3000,
+            'products'    => [
+                ['name' => 'Item', 'count' => 3, 'sum' => 1000],
+            ],
+        ];
+
+        $data = [
+            'merchantRequestId'    => 'REQ-456',
+            'merchantId'           => 'M-888',
+            'hppPayType'           => 'PURCHASE',
+            'directType'           => 'REDIRECT',
+            'coinAmount'           => 3000,
+            'paymentMethods'       => ['CARD'],
+            'successUrl'           => 'https://site.com/success',
+            'failUrl'              => 'https://site.com/fail',
+            'statusPageType'       => 'REDIRECT',
+            'customerData'         => ['senderCustomerId' => 'id_2'],
+            'hppPageAdditionalInfo' => $hppInfo,
+        ];
+
+        $dto    = OrderRequestDTO::fromArray($data);
+        $result = $dto->toArray();
+
+        $this->assertArrayHasKey('hppPageAdditionalInfo', $result);
+        $this->assertSame(3000, $result['hppPageAdditionalInfo']['productsSum']);
+        $this->assertSame('Item', $result['hppPageAdditionalInfo']['products'][0]['name']);
     }
 
     public function test_order_response_dto_dates(): void

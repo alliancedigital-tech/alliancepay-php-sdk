@@ -40,7 +40,7 @@ final class OrderResponseDTO
         private ?DateTimeImmutable $expiredOrderDate,
         private string $redirectUrl,
         private ?DateTimeImmutable $createDate,
-        private string $statusUrl,
+        private ?string $statusUrl,
         private string $nbuQrCode
     ) {
 

@@ -130,6 +130,11 @@ try {
     // 
 }
 ````
+
+> **A2A платіж:** Якщо `hppPayType` = `A2A`, необхідно змінити наступні параметри:
+> - `'directType'` => `'BANK_LINK'` *(для hppPayType PURCHASE використовується `'REDIRECT'`)*
+> - `'priorityBankCode'` => `'ALL_BANKS'`
+> - `'merchantComment'` => `'Comment for merchant'` *(обов'язково для A2A)*
 ___
 
 ## 3. Обробка зворотних викликів (Callback/Webhook)

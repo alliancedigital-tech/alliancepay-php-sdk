@@ -39,7 +39,7 @@ final class CallbackDTO
         private string $ecomOrderId,
         private int $coinAmount,
         private string $merchantId,
-        private string $statusUrl,
+        private ?string $statusUrl,
         private string $redirectUrl,
         private string $notificationUrl,
         private bool $notificationEncryption,
@@ -106,7 +106,7 @@ final class CallbackDTO
             self::PROPERTY_PAYMENT_METHODS => $this->paymentMethods,
             self::PROPERTY_ORDER_STATUS => $this->orderStatus,
             self::PROPERTY_EXPIRED_ORDER_DATE => $this->expiredOrderDate,
-            self::PROPERTY_OPERATION => $this->operation,
+            self::PROPERTY_OPERATION => $this->operation->toArray(),
         ];
     }
 
@@ -122,6 +122,7 @@ final class CallbackDTO
 
         return match ($type) {
             OperationPurchaseDTO::OPERATION_TYPE => OperationPurchaseDTO::fromArray($operation),
+            OperationPurchaseDTO::OPERATION_TYPE_A2A => OperationPurchaseDTO::fromArray($operation),
             OperationRefundDTO::OPERATION_TYPE   => OperationRefundDTO::fromArray($operation),
             default => throw new CallbackException('Unknown operation type: ' . $type),
         };

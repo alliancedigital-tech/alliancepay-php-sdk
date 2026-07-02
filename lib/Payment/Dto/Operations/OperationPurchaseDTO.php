@@ -71,6 +71,7 @@ class OperationPurchaseDTO
     public const PROPERTY_SENDER_CARD_NUMBER_MASK = 'senderCardNumberMask';
     public const PROPERTY_RECEIPT_URL = 'receiptUrl';
     public const OPERATION_TYPE = 'PURCHASE';
+    public const OPERATION_TYPE_A2A = 'ACCOUNT_2_ACCOUNT';
 
     public function __construct(
         private string $type,
