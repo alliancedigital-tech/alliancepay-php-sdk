@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace AlliancePay\Sdk\Tests\Unit\Payment\Order\Validation;
 
+use AlliancePay\Sdk\Exceptions\CompletionAmountException;
 use AlliancePay\Sdk\Exceptions\ValidateDataException;
+use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 use AlliancePay\Sdk\Payment\Order\Validation\ValidateOrderData;
 
@@ -16,6 +18,9 @@ use AlliancePay\Sdk\Payment\Order\Validation\ValidateOrderData;
  */
 class ValidateOrderDataTest extends TestCase
 {
+    /**
+     * @return array
+     */
     private function validOrderData(): array
     {
         return [
@@ -578,5 +583,271 @@ class ValidateOrderDataTest extends TestCase
         $result = ValidateOrderData::clearOrderData($data);
 
         $this->assertArrayNotHasKey('hppPageAdditionalInfo', $result);
+    }
+
+    /**
+     * @return void
+     * @throws CompletionAmountException
+     */
+    public function test_validate_completion_amount_passes_when_amounts_are_equal(): void
+    {
+        ValidateOrderData::validateCompletionAmount(1000, 1000);
+        $this->addToAssertionCount(1);
+    }
+
+    /**
+     * @return void
+     * @throws CompletionAmountException
+     */
+    public function test_validate_completion_amount_passes_at_exact_minimum(): void
+    {
+        ValidateOrderData::validateCompletionAmount(1000, 800);
+        $this->addToAssertionCount(1);
+    }
+
+    /**
+     * @return void
+     * @throws CompletionAmountException
+     */
+    public function test_validate_completion_amount_passes_at_exact_maximum(): void
+    {
+        ValidateOrderData::validateCompletionAmount(1000, 1200);
+        $this->addToAssertionCount(1);
+    }
+
+    /**
+     * @return void
+     * @throws CompletionAmountException
+     */
+    public function test_validate_completion_amount_passes_within_range(): void
+    {
+        ValidateOrderData::validateCompletionAmount(1000, 950);
+        $this->addToAssertionCount(1);
+    }
+
+    /**
+     * @return void
+     * @throws CompletionAmountException
+     */
+    public function test_validate_completion_amount_throws_when_below_minimum(): void
+    {
+        $this->expectException(CompletionAmountException::class);
+
+        ValidateOrderData::validateCompletionAmount(1000, 799);
+    }
+
+    /**
+     * @return void
+     * @throws CompletionAmountException
+     */
+    public function test_validate_completion_amount_throws_when_above_maximum(): void
+    {
+        $this->expectException(CompletionAmountException::class);
+
+        ValidateOrderData::validateCompletionAmount(1000, 1201);
+    }
+
+    /**
+     * @return void
+     */
+    public function test_validate_completion_amount_exception_message_contains_all_values(): void
+    {
+        try {
+            ValidateOrderData::validateCompletionAmount(1000, 1500);
+            $this->fail('Expected CompletionAmountException was not thrown.');
+        } catch (CompletionAmountException $e) {
+            $this->assertStringContainsString('1500', $e->getMessage());
+            $this->assertStringContainsString('1000', $e->getMessage());
+        }
+    }
+
+    /**
+     * @return void
+     */
+    public function test_validate_completion_amount_exception_payload_has_correct_keys(): void
+    {
+        try {
+            ValidateOrderData::validateCompletionAmount(1000, 500);
+            $this->fail('Expected CompletionAmountException was not thrown.');
+        } catch (CompletionAmountException $e) {
+            $payload = $e->getPayload();
+            $this->assertArrayHasKey('originalCoinAmount', $payload);
+            $this->assertArrayHasKey('completionCoinAmount', $payload);
+            $this->assertArrayHasKey('allowedMin', $payload);
+            $this->assertArrayHasKey('allowedMax', $payload);
+        }
+    }
+
+    /**
+     * @return void
+     */
+    public function test_validate_completion_amount_exception_payload_values_are_correct(): void
+    {
+        try {
+            ValidateOrderData::validateCompletionAmount(1000, 1201);
+            $this->fail('Expected CompletionAmountException was not thrown.');
+        } catch (CompletionAmountException $e) {
+            $payload = $e->getPayload();
+            $this->assertSame(1000, $payload['originalCoinAmount']);
+            $this->assertSame(1201, $payload['completionCoinAmount']);
+            $this->assertSame(800, $payload['allowedMin']);   // floor(1000 * 0.8)
+            $this->assertSame(1200, $payload['allowedMax']);   // ceil(1000 * 1.2)
+        }
+    }
+
+    /**
+     * @dataProvider completionAmountBoundaryProvider
+     */
+    public function test_validate_completion_amount_boundary_values(
+        int  $original,
+        int  $completion,
+        bool $shouldPass
+    ): void
+    {
+        if (!$shouldPass) {
+            $this->expectException(CompletionAmountException::class);
+        }
+
+        ValidateOrderData::validateCompletionAmount($original, $completion);
+
+        if ($shouldPass) {
+            $this->addToAssertionCount(1);
+        }
+    }
+
+    /**
+     * @return array
+     */
+    public static function completionAmountBoundaryProvider(): array
+    {
+        return [
+            'exact match' => [1000, 1000, true],
+            'exact min (-20%)' => [1000, 800, true],
+            'exact max (+20%)' => [1000, 1200, true],
+            'one below min' => [1000, 799, false],
+            'one above max' => [1000, 1201, false],
+            'zero completion' => [1000, 0, false],
+            'large original equal' => [100000, 100000, true],
+            'large original -20%' => [100000, 80000, true],
+            'large original +20%' => [100000, 120000, true],
+            'large original below' => [100000, 79999, false],
+            'large original above' => [100000, 120001, false],
+        ];
+    }
+
+    /**
+     * @return array
+     */
+    private function validPreauthOrderData(): array
+    {
+        return [
+            'merchantRequestId' => '99999999-1111-1111-9999-999999999999',
+            'merchantId' => '99999999-1111-1111-9999-999999999999',
+            'hppPayType' => 'PREAUTH',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 2000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://example.com/success',
+            'failUrl' => 'https://example.com/fail',
+            'statusPageType' => 'DEFAULT',
+            'customerData' => ['senderCustomerId' => 'cust_1'],
+        ];
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_preauth_exp_date_null_passes_validation(): void
+    {
+        $data = $this->validPreauthOrderData();
+
+        $result = ValidateOrderData::validateOrderRequiredData($data);
+        $this->assertIsArray($result);
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_preauth_exp_date_valid_future_date_passes_validation(): void
+    {
+        $data = $this->validPreauthOrderData();
+        $date = (new DateTimeImmutable('now'))->modify('+5 hours');
+        $data['preAuthExpDate'] = $date->format('Y-m-d H:i:s.') . '00+00:00';
+
+        $result = ValidateOrderData::validateOrderRequiredData($data);
+        $this->assertIsArray($result);
+    }
+
+    /**
+     * @return void
+     */
+    public function test_preauth_exp_date_invalid_format_throws_exception(): void
+    {
+        $data = $this->validPreauthOrderData();
+        $data['preAuthExpDate'] = '2025-11-13';
+
+        try {
+            ValidateOrderData::validateOrderRequiredData($data);
+            $this->fail('Expected ValidateDataException was not thrown.');
+        } catch (ValidateDataException $e) {
+            $fields = array_column($e->getPayload(), 'field');
+            $this->assertContains('preAuthExpDate', $fields);
+            $messages = array_column($e->getPayload(), 'message');
+            $combined = implode(' ', $messages);
+            $this->assertStringContainsString('invalid format', $combined);
+        }
+    }
+
+    /**
+     * @return void
+     */
+    public function test_preauth_exp_date_too_soon_throws_exception(): void
+    {
+        $data = $this->validPreauthOrderData();
+        $date = (new DateTimeImmutable('now'))->modify('+30 minutes');
+        $data['preAuthExpDate'] = $date->format('Y-m-d H:i:s.') . '00+00:00';
+
+        try {
+            ValidateOrderData::validateOrderRequiredData($data);
+            $this->fail('Expected ValidateDataException was not thrown.');
+        } catch (ValidateDataException $e) {
+            $fields = array_column($e->getPayload(), 'field');
+            $this->assertContains('preAuthExpDate', $fields);
+        }
+    }
+
+    /**
+     * @return void
+     */
+    public function test_preauth_exp_date_too_far_throws_exception(): void
+    {
+        $data = $this->validPreauthOrderData();
+        $date = (new DateTimeImmutable('now'))->modify('+30 days');
+        $data['preAuthExpDate'] = $date->format('Y-m-d H:i:s.') . '00+00:00';
+
+        try {
+            ValidateOrderData::validateOrderRequiredData($data);
+            $this->fail('Expected ValidateDataException was not thrown.');
+        } catch (ValidateDataException $e) {
+            $fields = array_column($e->getPayload(), 'field');
+            $this->assertContains('preAuthExpDate', $fields);
+        }
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_preauth_exp_date_not_validated_for_purchase_type(): void
+    {
+        $data = $this->validOrderData();
+        $data['hppPayType'] = 'PURCHASE';
+        $data['directType'] = 'REDIRECT';
+        $data['preAuthExpDate'] = 'not-a-date';
+
+        $result = ValidateOrderData::validateOrderRequiredData($data);
+        $this->assertIsArray($result);
     }
 }

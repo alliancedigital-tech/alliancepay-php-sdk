@@ -72,6 +72,8 @@ class OperationPurchaseDTO
     public const PROPERTY_RECEIPT_URL = 'receiptUrl';
     public const OPERATION_TYPE = 'PURCHASE';
     public const OPERATION_TYPE_A2A = 'ACCOUNT_2_ACCOUNT';
+    public const OPERATION_TYPE_PREAUTH = 'PREAUTH';
+    public const OPERATION_TYPE_COMPLETION = 'COMPLETION';
 
     public function __construct(
         private string $type,

@@ -97,8 +97,10 @@ final class OrderDataResponseDTO
 
             $preparedOperations[] = match ($type) {
                 OperationPurchaseDTO::OPERATION_TYPE,
-                OperationPurchaseDTO::OPERATION_TYPE_A2A => OperationPurchaseDTO::fromArray($operation),
-                OperationRefundDTO::OPERATION_TYPE => OperationRefundDTO::fromArray($operation),
+                OperationPurchaseDTO::OPERATION_TYPE_A2A,
+                OperationPurchaseDTO::OPERATION_TYPE_PREAUTH,
+                OperationPurchaseDTO::OPERATION_TYPE_COMPLETION => OperationPurchaseDTO::fromArray($operation),
+                OperationRefundDTO::OPERATION_TYPE              => OperationRefundDTO::fromArray($operation),
                 default => throw new AlliancePayException('Unknown operation type: ' . $type),
             };
         }

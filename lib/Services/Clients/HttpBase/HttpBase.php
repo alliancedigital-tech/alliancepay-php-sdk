@@ -20,6 +20,7 @@ class HttpBase
     private const ENDPOINT_CREATE_ORDER = '/ecom/execute_request/hpp/v1/create-order';
     private const ENDPOINT_OPERATIONS = '/ecom/execute_request/hpp/v1/operations';
     private const ENDPOINT_REFUND = '/ecom/execute_request/payments/v3/refund';
+    private const ENDPOINT_COMPLETION = '/ecom/execute_request/payments/v1/completion';
     private const ENDPOINT_AUTHORIZE = '/api-gateway/authorize_virtual_device';
 
     /**
@@ -89,5 +90,14 @@ class HttpBase
     public function getOperationsUrl(string $baseUrl): string
     {
         return $baseUrl . self::ENDPOINT_OPERATIONS;
+    }
+
+    /**
+     * @param string $baseUrl
+     * @return string
+     */
+    public function getCompletionUrl(string $baseUrl): string
+    {
+        return $baseUrl . self::ENDPOINT_COMPLETION;
     }
 }

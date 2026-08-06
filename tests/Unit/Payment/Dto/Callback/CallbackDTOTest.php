@@ -168,6 +168,47 @@ class CallbackDTOTest extends TestCase
 
     /**
      * @return void
+     * @throws CallbackException
+     */
+    public function test_from_array_creates_preauth_operation(): void
+    {
+        $data = $this->getBaseCallbackData();
+        $operationData = $this->getPurchaseOperationData();
+        $operationData['type'] = OperationPurchaseDTO::OPERATION_TYPE_PREAUTH;
+        $data['operation'] = $operationData;
+
+        $dto = CallbackDTO::fromArray($data);
+
+        $this->assertInstanceOf(CallbackDTO::class, $dto);
+        $this->assertSame(
+            OperationPurchaseDTO::OPERATION_TYPE_PREAUTH,
+            $dto->toArray()['operation']['type']
+        );
+    }
+
+    /**
+     * @return void
+     * @throws CallbackException
+     */
+    public function test_from_array_creates_completion_operation(): void
+    {
+        $data = $this->getBaseCallbackData();
+        $operationData = $this->getPurchaseOperationData();
+        $operationData['type'] = OperationPurchaseDTO::OPERATION_TYPE_COMPLETION;
+        $data['operation'] = $operationData;
+
+        $dto = CallbackDTO::fromArray($data);
+
+        $this->assertInstanceOf(CallbackDTO::class, $dto);
+        $this->assertSame(
+            OperationPurchaseDTO::OPERATION_TYPE_COMPLETION,
+            $dto->toArray()['operation']['type']
+        );
+    }
+
+    /**
+     * @return void
+     * @throws CallbackException
      */
     public function test_to_array_returns_correct_structure(): void
     {

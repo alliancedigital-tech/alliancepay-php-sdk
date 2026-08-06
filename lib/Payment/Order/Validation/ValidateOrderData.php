@@ -7,7 +7,10 @@ declare(strict_types=1);
 
 namespace AlliancePay\Sdk\Payment\Order\Validation;
 
+use AlliancePay\Sdk\Exceptions\CompletionAmountException;
 use AlliancePay\Sdk\Exceptions\ValidateDataException;
+use DateTimeImmutable;
+use DateTimeZone;
 
 /**
  * Class ValidateOrderData.
@@ -183,6 +186,10 @@ class ValidateOrderData
                 ],
             ],
         ],
+        'preAuthExpDate' => [
+            'type' => 'string',
+            'required' => false,
+        ],
         'customerData' => [
             'type' => 'array',
             'required' => true,
@@ -344,11 +351,80 @@ class ValidateOrderData
             }
         }
 
+        if (($orderData['hppPayType'] ?? null) === 'PREAUTH') {
+            $preAuthExpDate = $orderData['preAuthExpDate'] ?? null;
+
+            if ($preAuthExpDate !== null) {
+                $preAuthPattern = '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{2}[+-]\d{2}:\d{2}$/';
+                if (!preg_match($preAuthPattern, $preAuthExpDate)) {
+                    $errors[] = [
+                        'field' => 'preAuthExpDate',
+                        'message' => 'invalid format, expected: 2025-11-13 15:01:54.56+02:00',
+                    ];
+                } else {
+                    $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+                    $minDate = $now->modify('+2 hours');
+                    $maxDate = $now->modify('+28 days');
+
+                    try {
+                        $parsedDate = new DateTimeImmutable($preAuthExpDate);
+
+                        if ($parsedDate <= $minDate) {
+                            $errors[] = [
+                                'field' => 'preAuthExpDate',
+                                'message' => 'must be greater than now() + 2 hours',
+                            ];
+                        } elseif ($parsedDate >= $maxDate) {
+                            $errors[] = [
+                                'field' => 'preAuthExpDate',
+                                'message' => 'must be less than now() + 28 days',
+                            ];
+                        }
+                    } catch (\Exception $e) {
+                        $errors[] = [
+                            'field' => 'preAuthExpDate',
+                            'message' => 'invalid date value',
+                        ];
+                    }
+                }
+            }
+        }
+
         if (!empty($errors)) {
             throw new ValidateDataException('Validation error', $errors);
         }
 
         return $orderData;
+    }
+
+    /**
+     * @param int $originalCoinAmount
+     * @param int $completionCoinAmount
+     * @return void
+     * @throws CompletionAmountException
+     */
+    public static function validateCompletionAmount(int $originalCoinAmount, int $completionCoinAmount): void
+    {
+        $allowedMin = (int)floor($originalCoinAmount * 0.8);
+        $allowedMax = (int)ceil($originalCoinAmount * 1.2);
+
+        if ($completionCoinAmount < $allowedMin || $completionCoinAmount > $allowedMax) {
+            throw new CompletionAmountException(
+                message: sprintf(
+                    'completionCoinAmount %d is out of allowed range [%d, %d] (±20%% of originalCoinAmount %d)',
+                    $completionCoinAmount,
+                    $allowedMin,
+                    $allowedMax,
+                    $originalCoinAmount
+                ),
+                payload: [
+                    'originalCoinAmount' => $originalCoinAmount,
+                    'completionCoinAmount' => $completionCoinAmount,
+                    'allowedMin' => $allowedMin,
+                    'allowedMax' => $allowedMax,
+                ]
+            );
+        }
     }
 
     /**

@@ -96,4 +96,30 @@ class HttpBaseTest extends TestCase
             ]
         );
     }
+
+    /**
+     * @return void
+     */
+    public function test_get_completion_url_returns_correct_endpoint(): void
+    {
+        $baseUrl = 'https://api.bankalliance.ua';
+
+        $url = $this->httpBase->getCompletionUrl($baseUrl);
+
+        $this->assertSame(
+            'https://api.bankalliance.ua/ecom/execute_request/payments/v1/completion',
+            $url
+        );
+    }
+
+    /**
+     * @return void
+     */
+    public function test_get_completion_url_with_trailing_slash(): void
+    {
+        $url = $this->httpBase->getCompletionUrl('https://api.example.com');
+
+        $this->assertStringContainsString('/ecom/execute_request/payments/v1/completion', $url);
+        $this->assertStringStartsWith('https://api.example.com', $url);
+    }
 }

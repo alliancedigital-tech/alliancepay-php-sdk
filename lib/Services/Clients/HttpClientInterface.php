@@ -17,10 +17,10 @@ interface HttpClientInterface
     public const METHOD_POST = 'POST';
 
     /**
-     * @param string $method GET, POST, etc.
-     * @param string $url Повний URL
-     * @param array $options ['headers' => [], 'body' => [], 'query' => []]
-     * @return array ['code' => int, 'body' => array, 'headers' => array]
+     * @param string $method
+     * @param string $url
+     * @param array $options
+     * @return array
      */
     public function request(string $method, string $url, array $options = []): array;
 
@@ -61,4 +61,10 @@ interface HttpClientInterface
      * @return string
      */
     public function getOperationsUrl(string $baseUrl): string;
+
+    /**
+     * @param string $baseUrl
+     * @return string
+     */
+    public function getCompletionUrl(string $baseUrl): string;
 }

@@ -121,9 +121,11 @@ final class CallbackDTO
             ?? throw new CallbackException('Operation type is missing');
 
         return match ($type) {
-            OperationPurchaseDTO::OPERATION_TYPE => OperationPurchaseDTO::fromArray($operation),
-            OperationPurchaseDTO::OPERATION_TYPE_A2A => OperationPurchaseDTO::fromArray($operation),
-            OperationRefundDTO::OPERATION_TYPE   => OperationRefundDTO::fromArray($operation),
+            OperationPurchaseDTO::OPERATION_TYPE,
+            OperationPurchaseDTO::OPERATION_TYPE_A2A,
+            OperationPurchaseDTO::OPERATION_TYPE_PREAUTH,
+            OperationPurchaseDTO::OPERATION_TYPE_COMPLETION => OperationPurchaseDTO::fromArray($operation),
+            OperationRefundDTO::OPERATION_TYPE              => OperationRefundDTO::fromArray($operation),
             default => throw new CallbackException('Unknown operation type: ' . $type),
         };
     }

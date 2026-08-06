@@ -9,6 +9,8 @@ namespace AlliancePay\Sdk\Payment\Dto\Order;
 
 use AlliancePay\Sdk\Exceptions\ValidateDataException;
 use AlliancePay\Sdk\Payment\Order\Validation\ValidateOrderData;
+use DateTimeImmutable;
+use DateTimeZone;
 
 /**
  * Class OrderRequestDTO.
@@ -36,6 +38,7 @@ final class OrderRequestDTO
     private const PROPERTY_PAYMENT_CATEGORY_GOAL = 'paymentCategoryGoal';
     private const PROPERTY_GENERATE_QR_NBU = 'generateQrNbu';
     private const PROPERTY_HPP_PAGE_ADDITIONAL_INFO = 'hppPageAdditionalInfo';
+    private const PROPERTY_PRE_AUTH_EXP_DATE = 'preAuthExpDate';
 
     public function __construct(
         private string $merchantRequestId,
@@ -59,8 +62,15 @@ final class OrderRequestDTO
         private ?string $paymentCategoryGoal = null,
         private bool $generateQrNbu = false,
         private ?array $hppPageAdditionalInfo = null,
+        private ?string $preAuthExpDate = null,
     ) {
-
+        if ($this->hppPayType === 'PREAUTH' && $this->preAuthExpDate === null) {
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $default = $now->modify('+2 hours +30 seconds');
+            $this->preAuthExpDate = $default->format('Y-m-d H:i:s.') .
+                substr($default->format('u'), 0, 2) .
+                $default->format('P');
+        }
     }
 
     /**
@@ -152,6 +162,14 @@ final class OrderRequestDTO
     }
 
     /**
+     * @return string|null
+     */
+    public function getPreAuthExpDate(): ?string
+    {
+        return $this->preAuthExpDate;
+    }
+
+    /**
      * @param array $orderData
      * @return self
      * @throws ValidateDataException
@@ -183,6 +201,7 @@ final class OrderRequestDTO
             paymentCategoryGoal: $orderData[self::PROPERTY_PAYMENT_CATEGORY_GOAL] ?? null,
             generateQrNbu: (bool)($orderData[self::PROPERTY_GENERATE_QR_NBU] ?? false),
             hppPageAdditionalInfo: $orderData[self::PROPERTY_HPP_PAGE_ADDITIONAL_INFO] ?? null,
+            preAuthExpDate: $orderData[self::PROPERTY_PRE_AUTH_EXP_DATE] ?? null,
         );
     }
 
@@ -212,6 +231,7 @@ final class OrderRequestDTO
             self::PROPERTY_PAYMENT_CATEGORY_GOAL => $this->paymentCategoryGoal,
             self::PROPERTY_GENERATE_QR_NBU => $this->generateQrNbu,
             self::PROPERTY_HPP_PAGE_ADDITIONAL_INFO => $this->hppPageAdditionalInfo,
+            self::PROPERTY_PRE_AUTH_EXP_DATE => $this->preAuthExpDate,
         ];
 
         return ValidateOrderData::clearOrderData($data);
