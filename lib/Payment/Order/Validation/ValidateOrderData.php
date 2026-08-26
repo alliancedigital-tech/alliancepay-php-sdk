@@ -17,6 +17,14 @@ use DateTimeZone;
  */
 class ValidateOrderData
 {
+    public const CURRENCY_MAP = [
+        'UAH' => 980,
+        'USD' => 840,
+        'EUR' => 978,
+    ];
+
+    public const SUPPORTED_CURRENCY_CODES = [980, 840, 978];
+
     // Kept for backwards compatibility
     public const REQUIRED_CRETE_ORDER_DATA_FIELDS = [
         'merchantRequestId',
@@ -189,6 +197,11 @@ class ValidateOrderData
         'preAuthExpDate' => [
             'type' => 'string',
             'required' => false,
+        ],
+        'currencyCode' => [
+            'type' => 'int',
+            'required' => false,
+            'enum' => [980, 840, 978],
         ],
         'customerData' => [
             'type' => 'array',
@@ -390,6 +403,17 @@ class ValidateOrderData
             }
         }
 
+        if (
+            ($orderData['hppPayType'] ?? null) === 'A2A'
+            && isset($orderData['currencyCode'])
+            && (int)$orderData['currencyCode'] !== self::CURRENCY_MAP['UAH']
+        ) {
+            $errors[] = [
+                'field'   => 'currencyCode',
+                'message' => 'A2A payment type supports only UAH (980)',
+            ];
+        }
+
         if (!empty($errors)) {
             throw new ValidateDataException('Validation error', $errors);
         }
@@ -502,6 +526,13 @@ class ValidateOrderData
             $errors[] = [
                 'field' => $field,
                 'message' => 'invalid value, allowed: ' . implode(', ', $rule['variants']),
+            ];
+        }
+
+        if (isset($rule['enum']) && !in_array($value, $rule['enum'], true)) {
+            $errors[] = [
+                'field' => $field,
+                'message' => 'invalid value, allowed: ' . implode(', ', $rule['enum']),
             ];
         }
 

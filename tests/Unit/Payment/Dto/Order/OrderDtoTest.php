@@ -272,4 +272,224 @@ class OrderDtoTest extends TestCase
         $this->assertInstanceOf(DateTimeImmutable::class, $dto->getCreateDate());
         $this->assertEquals('2026-02-16', $dto->getCreateDate()->format('Y-m-d'));
     }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_currency_code_defaults_to_uah(): void
+    {
+        $data = [
+            'merchantRequestId' => 'REQ-CUR-1',
+            'merchantId' => 'M-1',
+            'hppPayType' => 'PURCHASE',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 10000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://example.com/success',
+            'failUrl' => 'https://example.com/fail',
+            'statusPageType' => 'STATUS_PAGE',
+            'customerData' => ['senderCustomerId' => 'cust_1'],
+        ];
+
+        $dto = OrderRequestDTO::fromArray($data);
+
+        $this->assertSame(OrderRequestDTO::CURRENCY_UAH, $dto->getCurrencyCode());
+        $this->assertSame(980, $dto->getCurrencyCode());
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_currency_code_can_be_set_to_usd(): void
+    {
+        $data = [
+            'merchantRequestId' => 'REQ-CUR-2',
+            'merchantId' => 'M-1',
+            'hppPayType' => 'PURCHASE',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 10000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://example.com/success',
+            'failUrl' => 'https://example.com/fail',
+            'statusPageType' => 'STATUS_PAGE',
+            'customerData' => ['senderCustomerId' => 'cust_1'],
+            'currencyCode' => OrderRequestDTO::CURRENCY_USD,
+        ];
+
+        $dto = OrderRequestDTO::fromArray($data);
+
+        $this->assertSame(OrderRequestDTO::CURRENCY_USD, $dto->getCurrencyCode());
+        $this->assertSame(840, $dto->getCurrencyCode());
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_currency_code_can_be_set_to_eur(): void
+    {
+        $data = [
+            'merchantRequestId' => 'REQ-CUR-3',
+            'merchantId' => 'M-1',
+            'hppPayType' => 'PURCHASE',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 10000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://example.com/success',
+            'failUrl' => 'https://example.com/fail',
+            'statusPageType' => 'STATUS_PAGE',
+            'customerData' => ['senderCustomerId' => 'cust_1'],
+            'currencyCode' => OrderRequestDTO::CURRENCY_EUR,
+        ];
+
+        $dto = OrderRequestDTO::fromArray($data);
+
+        $this->assertSame(OrderRequestDTO::CURRENCY_EUR, $dto->getCurrencyCode());
+        $this->assertSame(978, $dto->getCurrencyCode());
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_currency_code_accepts_numeric_value(): void
+    {
+        $data = [
+            'merchantRequestId' => 'REQ-CUR-4',
+            'merchantId' => 'M-1',
+            'hppPayType' => 'PURCHASE',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 10000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://example.com/success',
+            'failUrl' => 'https://example.com/fail',
+            'statusPageType' => 'STATUS_PAGE',
+            'customerData' => ['senderCustomerId' => 'cust_1'],
+            'currencyCode' => 840,
+        ];
+
+        $dto = OrderRequestDTO::fromArray($data);
+
+        $this->assertSame(840, $dto->getCurrencyCode());
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_currency_code_is_integer_type(): void
+    {
+        $data = [
+            'merchantRequestId' => 'REQ-CUR-5',
+            'merchantId' => 'M-1',
+            'hppPayType' => 'PURCHASE',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 10000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://example.com/success',
+            'failUrl' => 'https://example.com/fail',
+            'statusPageType' => 'STATUS_PAGE',
+            'customerData' => ['senderCustomerId' => 'cust_1'],
+            'currencyCode' => 978,
+        ];
+
+        $dto = OrderRequestDTO::fromArray($data);
+
+        $this->assertSame(978, $dto->getCurrencyCode());
+        $this->assertIsInt($dto->getCurrencyCode());
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_to_array_excludes_currency_code_when_uah(): void
+    {
+        $data = [
+            'merchantRequestId' => 'REQ-CUR-6',
+            'merchantId' => 'M-1',
+            'hppPayType' => 'PURCHASE',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 10000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://example.com/success',
+            'failUrl' => 'https://example.com/fail',
+            'statusPageType' => 'STATUS_PAGE',
+            'customerData' => ['senderCustomerId' => 'cust_1'],
+        ];
+
+        $dto = OrderRequestDTO::fromArray($data);
+        $result = $dto->toArray();
+
+        $this->assertArrayNotHasKey('currencyCode', $result);
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_to_array_includes_currency_code_when_usd(): void
+    {
+        $data = [
+            'merchantRequestId' => 'REQ-CUR-7',
+            'merchantId' => 'M-1',
+            'hppPayType' => 'PURCHASE',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 10000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://example.com/success',
+            'failUrl' => 'https://example.com/fail',
+            'statusPageType' => 'STATUS_PAGE',
+            'customerData' => ['senderCustomerId' => 'cust_1'],
+            'currencyCode' => OrderRequestDTO::CURRENCY_USD,
+        ];
+
+        $dto = OrderRequestDTO::fromArray($data);
+        $result = $dto->toArray();
+
+        $this->assertArrayHasKey('currencyCode', $result);
+        $this->assertSame(840, $result['currencyCode']);
+    }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_to_array_includes_currency_code_when_eur(): void
+    {
+        $data = [
+            'merchantRequestId' => 'REQ-CUR-8',
+            'merchantId' => 'M-1',
+            'hppPayType' => 'PURCHASE',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 10000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://example.com/success',
+            'failUrl' => 'https://example.com/fail',
+            'statusPageType' => 'STATUS_PAGE',
+            'customerData' => ['senderCustomerId' => 'cust_1'],
+            'currencyCode' => OrderRequestDTO::CURRENCY_EUR,
+        ];
+
+        $dto = OrderRequestDTO::fromArray($data);
+        $result = $dto->toArray();
+
+        $this->assertArrayHasKey('currencyCode', $result);
+        $this->assertSame(978, $result['currencyCode']);
+    }
+
+    /**
+     * @return void
+     */
+    public function test_supported_currencies_constant(): void
+    {
+        $supportedCurrencies = OrderRequestDTO::SUPPORTED_CURRENCIES;
+
+        $this->assertContains(OrderRequestDTO::CURRENCY_UAH, $supportedCurrencies);
+        $this->assertContains(OrderRequestDTO::CURRENCY_USD, $supportedCurrencies);
+        $this->assertContains(OrderRequestDTO::CURRENCY_EUR, $supportedCurrencies);
+        $this->assertCount(3, $supportedCurrencies);
+    }
 }

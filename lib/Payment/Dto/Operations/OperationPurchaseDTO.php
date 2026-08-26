@@ -70,6 +70,9 @@ class OperationPurchaseDTO
     public const PROPERTY_SENDER_PAYMENT_SYSTEM = 'senderPaymentSystem';
     public const PROPERTY_SENDER_CARD_NUMBER_MASK = 'senderCardNumberMask';
     public const PROPERTY_RECEIPT_URL = 'receiptUrl';
+    public const PROPERTY_SOURCE_AMOUNT = 'sourceAmount';
+    public const PROPERTY_SOURCE_CURRENCY_CODE = 'sourceCurrencyCode';
+    public const PROPERTY_CONVERSION_RATE = 'conversionRate';
     public const OPERATION_TYPE = 'PURCHASE';
     public const OPERATION_TYPE_A2A = 'ACCOUNT_2_ACCOUNT';
     public const OPERATION_TYPE_PREAUTH = 'PREAUTH';
@@ -129,7 +132,10 @@ class OperationPurchaseDTO
         private ?string $senderBankCode,
         private ?string $senderPaymentSystem,
         private ?string $senderCardNumberMask,
-        private ?string $receiptUrl
+        private ?string $receiptUrl,
+        private ?int $sourceAmount = null,
+        private ?int $sourceCurrencyCode = null,
+        private ?float $conversionRate = null
     ) {}
 
     /**
@@ -205,7 +211,13 @@ class OperationPurchaseDTO
             senderBankCode: $data[self::PROPERTY_SENDER_BANK_CODE] ?? null,
             senderPaymentSystem: $data[self::PROPERTY_SENDER_PAYMENT_SYSTEM] ?? null,
             senderCardNumberMask: $data[self::PROPERTY_SENDER_CARD_NUMBER_MASK] ?? null,
-            receiptUrl: $data[self::PROPERTY_RECEIPT_URL] ?? null
+            receiptUrl: $data[self::PROPERTY_RECEIPT_URL] ?? null,
+            sourceAmount: isset($data[self::PROPERTY_SOURCE_AMOUNT])
+                ? (int)$data[self::PROPERTY_SOURCE_AMOUNT] : null,
+            sourceCurrencyCode: isset($data[self::PROPERTY_SOURCE_CURRENCY_CODE])
+                ? (int)$data[self::PROPERTY_SOURCE_CURRENCY_CODE] : null,
+            conversionRate: isset($data[self::PROPERTY_CONVERSION_RATE])
+                ? (float)$data[self::PROPERTY_CONVERSION_RATE] : null,
         );
     }
 
@@ -639,6 +651,30 @@ class OperationPurchaseDTO
     public function getReceiptUrl(): ?string
     {
         return $this->receiptUrl;
+    }
+
+    /**
+     * @return int|null
+     */
+    public function getSourceAmount(): ?int
+    {
+        return $this->sourceAmount;
+    }
+
+    /**
+     * @return int|null
+     */
+    public function getSourceCurrencyCode(): ?int
+    {
+        return $this->sourceCurrencyCode;
+    }
+
+    /**
+     * @return float|null
+     */
+    public function getConversionRate(): ?float
+    {
+        return $this->conversionRate;
     }
 
     /**

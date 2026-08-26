@@ -135,6 +135,117 @@ try {
 > - `'directType'` => `'BANK_LINK'` *(для hppPayType PURCHASE використовується `'REDIRECT'`)*
 > - `'priorityBankCode'` => `'ALL_BANKS'`
 > - `'merchantComment'` => `'Comment for merchant'` *(обов'язково для A2A)*
+> - **ВАЖЛИВО:** A2A платежі підтримують **тільки UAH (980)**. Валюти USD та EUR не підтримуються для цього типу операцій.
+
+### 2.1. Створення замовлення з валютами USD та EUR
+
+SDK підтримує створення замовлень у валютах **USD (840)** та **EUR (978)**.
+
+**ВАЖЛИВІ ОБМЕЖЕННЯ:**
+- Операції **REFUND** та **COMPLETION** приймають `coinAmount` **тільки в UAH** (копійках)
+- Тип операції **A2A** (`hppPayType`) **не підтримує** USD та EUR, тільки UAH
+
+#### Приклад створення замовлення в USD:
+
+```PHP
+use AlliancePay\Sdk\Payment\Dto\Order\OrderRequestDTO;
+use AlliancePay\Sdk\Payment\Order\CreateOrder;
+use AlliancePay\Sdk\Services\RequestIdentification\GenerateRequestIdentification;
+
+// Замовлення в доларах США
+$orderData = [
+    'merchantRequestId' => GenerateRequestIdentification::generateRequestId(),
+    'merchantId' => $authDto->getMerchantId(),
+    'hppPayType' => 'PURCHASE',
+    'coinAmount' => 1000, // $10.00 USD (в центах)
+    'currencyCode' => OrderRequestDTO::CURRENCY_USD, // 840
+    'paymentMethods' => ['CARD', 'APPLE_PAY', 'GOOGLE_PAY'],
+    'successUrl' => 'https://your-site.com/success',
+    'failUrl' => 'https://your-site.com/fail',
+    'statusPageType' => 'STATUS_TIMER_PAGE',
+    'customerData' => ['senderCustomerId' => 'customer_id_1'],
+];
+
+$orderRequest = OrderRequestDTO::fromArray($orderData);
+$orderService = new CreateOrder();
+
+try {
+    $response = $orderService->createOrder($orderRequest, $authDto);
+    // Переадресовуйте користувача на $response->getRedirectUrl()
+} catch (\AlliancePay\Sdk\Exceptions\CreateOrderException $exception) {
+    // Обробка помилки
+}
+```
+
+#### Приклад створення замовлення в EUR:
+
+```PHP
+use AlliancePay\Sdk\Payment\Dto\Order\OrderRequestDTO;
+
+// Замовлення в євро
+$orderData = [
+    'merchantRequestId' => GenerateRequestIdentification::generateRequestId(),
+    'merchantId' => $authDto->getMerchantId(),
+    'hppPayType' => 'PURCHASE',
+    'coinAmount' => 2500, // €25.00 EUR (в центах)
+    'currencyCode' => OrderRequestDTO::CURRENCY_EUR, // 978
+    'paymentMethods' => ['CARD'],
+    'successUrl' => 'https://your-site.com/success',
+    'failUrl' => 'https://your-site.com/fail',
+    'statusPageType' => 'STATUS_TIMER_PAGE',
+    'customerData' => ['senderCustomerId' => 'customer_id_1'],
+];
+
+$orderRequest = OrderRequestDTO::fromArray($orderData);
+// ... далі так само як в попередньому прикладі
+```
+
+#### Використання CoinAmountConverter для конвертації валют:
+
+Якщо вам потрібно конвертувати суму з іноземної валюти в UAH (наприклад, для операцій REFUND або COMPLETION), використовуйте trait `CoinAmountConverter`:
+
+```PHP
+use AlliancePay\Sdk\Traits\CoinAmountConverter;
+
+// Приклад: конвертація $10.00 USD в UAH копійки
+// Якщо курс USD/UAH = 39.50
+$uahKopecks = CoinAmountConverter::convertToUahCoins(
+    amount: 10.00,          // сума в USD
+    conversionRate: 39.50   // курс: 1 USD = 39.50 UAH
+);
+// $uahKopecks === 39500 (395.00 UAH в копійках)
+
+// Отримання коду валюти за її літерним позначенням
+$currencyCode = CoinAmountConverter::currencyCodeFromAlpha('USD');
+// $currencyCode === 840
+
+// Підтримувані валюти
+OrderRequestDTO::CURRENCY_UAH; // 980
+OrderRequestDTO::CURRENCY_USD; // 840
+OrderRequestDTO::CURRENCY_EUR; // 978
+```
+
+#### Callback для замовлень з іноземними валютами:
+
+Коли замовлення створене в USD або EUR, callback містить додаткові поля з інформацією про конвертацію:
+
+```PHP
+use AlliancePay\Sdk\Payment\Callback\CallbackHandler;
+
+$callbackHandler = new CallbackHandler();
+$callback = $callbackHandler->handle($authDto);
+
+// Отримуємо операцію з callback
+$operation = $callback->getOperation(); // OperationPurchaseDTO
+
+// Якщо замовлення було в іноземній валюті, ці поля будуть заповнені:
+$sourceAmount = $operation->getSourceAmount();         // Сума в оригінальній валюті (центи)
+$sourceCurrency = $operation->getSourceCurrencyCode(); // Код валюти (840 = USD, 978 = EUR)
+$conversionRate = $operation->getConversionRate();     // Курс конвертації в UAH
+
+// coinAmount завжди в UAH копійках
+$uahAmount = $operation->getCoinAmount();
+```
 ___
 
 ## 3. Обробка зворотних викликів (Callback/Webhook)
@@ -181,8 +292,14 @@ ___
 
 ## 4. Повернення коштів (Refund)
 
-Для виконання операції повернення коштів використовується клас `AlliancePay\Sdk\Payment\Refund\RefundOrder`. 
+Для виконання операції повернення коштів використовується клас `AlliancePay\Sdk\Payment\Refund\RefundOrder`.
 Ви можете ініціювати як повне, так і часткове повернення, передавши відповідну суму в DTO.
+
+> **ВАЖЛИВО:** Незалежно від валюти оригінального замовлення (UAH, USD або EUR), поле `coinAmount` в операції REFUND **завжди має бути вказане в UAH (копійках)**.
+>
+> Якщо оригінальне замовлення було створене в USD або EUR, вам необхідно:
+> 1. Отримати дані про конвертацію з callback (поля `sourceAmount`, `sourceCurrencyCode`, `conversionRate`)
+> 2. Використати `CoinAmountConverter::convertToUahCoins()` для конвертації суми повернення в UAH копійки
 
 ### Приклад виконання Refund:
 
@@ -202,18 +319,56 @@ $refundData = [
     'merchantRequestId' => GenerateRequestIdentification::generateRequestId(),
     'merchantId' => $authDto->getMerchantId(),
     'operationId' => 'OPERATION_ID', // ID успішної операції по створенню замовлення.
-    'coinAmount' => 100, // Сума повернення в копійках
+    'coinAmount' => 100, // Сума повернення в UAH копійках
     'date' => DateTimeImmutableProvider::fromString('now', DateTimeImmutableProvider::KYIV_TIMEZONE),
 ];
 
 // 3. Виконання запитів
 try {
     $refundDto = RefundRequestDTO::fromArray($refundData);
-        
+
     // Виклик методу createRefund (потрібен збережений $authDto)
     $resultRefund = $refundService->createRefund($refundDto, $authDto);
 } catch (\AlliancePay\Sdk\Exceptions\RefundOrderException $exception) {
     // Обробка помилок (наприклад, недостатньо коштів або невірний ID операції)
+    echo "Помилка повернення: " . $exception->getMessage();
+}
+```
+
+### Приклад Refund для замовлення в іноземній валюті:
+
+Якщо оригінальне замовлення було створене в USD або EUR, вам потрібно конвертувати суму повернення в UAH:
+
+```PHP
+use AlliancePay\Sdk\Traits\CoinAmountConverter;
+use AlliancePay\Sdk\Payment\Refund\RefundOrder;
+use AlliancePay\Sdk\Payment\Dto\Refund\RefundRequestDTO;
+use AlliancePay\Sdk\Services\DateTime\DateTimeImmutableProvider;
+use AlliancePay\Sdk\Services\RequestIdentification\GenerateRequestIdentification;
+
+// Припустимо, оригінальне замовлення було на $10.00 USD
+// і з callback ви отримали conversionRate = 39.50 (1 USD = 39.50 UAH)
+
+// Конвертуємо суму повернення в UAH копійки
+$refundAmountUSD = 10.00;        // Повертаємо $10.00
+$conversionRate = 39.50;         // Курс з callback
+$refundAmountUAH = CoinAmountConverter::convertToUahCoins($refundAmountUSD, $conversionRate);
+// $refundAmountUAH = 39500 (395.00 UAH в копійках)
+
+$refundData = [
+    'merchantRequestId' => GenerateRequestIdentification::generateRequestId(),
+    'merchantId' => $authDto->getMerchantId(),
+    'operationId' => 'OPERATION_ID',
+    'coinAmount' => $refundAmountUAH, // Сума в UAH копійках!
+    'date' => DateTimeImmutableProvider::fromString('now', DateTimeImmutableProvider::KYIV_TIMEZONE),
+];
+
+$refundDto = RefundRequestDTO::fromArray($refundData);
+$refundService = new RefundOrder();
+
+try {
+    $resultRefund = $refundService->createRefund($refundDto, $authDto);
+} catch (\AlliancePay\Sdk\Exceptions\RefundOrderException $exception) {
     echo "Помилка повернення: " . $exception->getMessage();
 }
 ```
@@ -315,8 +470,12 @@ COMPLETION підтверджує та списує кошти, заблоков
 ### Ключові правила
 
 * **`originalOperationId`** — це поле `operationId` з відповіді на PREAUTH-замовлення (не `ecomOperationId`).
-* **`coinAmount`** — сума списання. Дозволяється відхилення **±20%** від оригінальної суми PREAUTH. Наприклад, якщо PREAUTH був на `10000` копійок, то COMPLETION може бути від `8000` до `12000`.
-* **Третій аргумент** методу `createCompletion()` — оригінальна сума PREAUTH (`int`, копійки). SDK використовує її для внутрішньої валідації ±20% перед надсиланням запиту.
+* **`coinAmount`** — сума списання **завжди в UAH (копійках)**. Дозволяється відхилення **±20%** від оригінальної суми PREAUTH. Наприклад, якщо PREAUTH був на `10000` копійок, то COMPLETION може бути від `8000` до `12000`.
+* **Третій аргумент** методу `createCompletion()` — оригінальна сума PREAUTH (`int`, копійки в UAH). SDK використовує її для внутрішньої валідації ±20% перед надсиланням запиту.
+
+> **ВАЖЛИВО:** Незалежно від валюти оригінального PREAUTH замовлення (UAH, USD або EUR), поле `coinAmount` в операції COMPLETION **завжди має бути вказане в UAH (копійках)**.
+>
+> Якщо оригінальне PREAUTH замовлення було створене в USD або EUR, використовуйте `CoinAmountConverter::convertToUahCoins()` для конвертації суми в UAH копійки.
 
 ### Поля `OrderRequestCompletionDTO`
 

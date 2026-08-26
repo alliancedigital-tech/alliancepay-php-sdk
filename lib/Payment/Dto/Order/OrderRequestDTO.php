@@ -39,6 +39,12 @@ final class OrderRequestDTO
     private const PROPERTY_GENERATE_QR_NBU = 'generateQrNbu';
     private const PROPERTY_HPP_PAGE_ADDITIONAL_INFO = 'hppPageAdditionalInfo';
     private const PROPERTY_PRE_AUTH_EXP_DATE = 'preAuthExpDate';
+    private const PROPERTY_CURRENCY_CODE = 'currencyCode';
+
+    public const CURRENCY_UAH = 980;
+    public const CURRENCY_USD = 840;
+    public const CURRENCY_EUR = 978;
+    public const SUPPORTED_CURRENCIES = [self::CURRENCY_UAH, self::CURRENCY_USD, self::CURRENCY_EUR];
 
     public function __construct(
         private string $merchantRequestId,
@@ -63,6 +69,7 @@ final class OrderRequestDTO
         private bool $generateQrNbu = false,
         private ?array $hppPageAdditionalInfo = null,
         private ?string $preAuthExpDate = null,
+        private int $currencyCode = self::CURRENCY_UAH,
     ) {
         if ($this->hppPayType === 'PREAUTH' && $this->preAuthExpDate === null) {
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
@@ -170,6 +177,14 @@ final class OrderRequestDTO
     }
 
     /**
+     * @return int
+     */
+    public function getCurrencyCode(): int
+    {
+        return $this->currencyCode;
+    }
+
+    /**
      * @param array $orderData
      * @return self
      * @throws ValidateDataException
@@ -202,6 +217,9 @@ final class OrderRequestDTO
             generateQrNbu: (bool)($orderData[self::PROPERTY_GENERATE_QR_NBU] ?? false),
             hppPageAdditionalInfo: $orderData[self::PROPERTY_HPP_PAGE_ADDITIONAL_INFO] ?? null,
             preAuthExpDate: $orderData[self::PROPERTY_PRE_AUTH_EXP_DATE] ?? null,
+            currencyCode: isset($orderData[self::PROPERTY_CURRENCY_CODE])
+                ? (int)$orderData[self::PROPERTY_CURRENCY_CODE]
+                : self::CURRENCY_UAH,
         );
     }
 
@@ -233,6 +251,10 @@ final class OrderRequestDTO
             self::PROPERTY_HPP_PAGE_ADDITIONAL_INFO => $this->hppPageAdditionalInfo,
             self::PROPERTY_PRE_AUTH_EXP_DATE => $this->preAuthExpDate,
         ];
+
+        if ($this->currencyCode !== self::CURRENCY_UAH) {
+            $data[self::PROPERTY_CURRENCY_CODE] = $this->currencyCode;
+        }
 
         return ValidateOrderData::clearOrderData($data);
     }
