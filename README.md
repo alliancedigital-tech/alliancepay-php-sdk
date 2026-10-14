@@ -540,3 +540,243 @@ try {
     print_r($e->getPayload());
 }
 ```
+___
+
+## 8. Підписки на рекурентні платежі
+
+SDK покриває виклики банківського API для планів підписок і рекурентних платежів (`scheduled_payments/*`). На відміну від секцій 1–7, ці ендпоінти використовують `Content-Type: application/jwt` замість `application/jws` — це обробляється SDK автоматично, окремих дій не потрібно.
+
+**Обмеження SDK (навмисні):**
+- Підписки підтримують лише валюту **UAH (980)** — інші валюти відхиляються на етапі валідації.
+- SDK не має власної БД, адмін-панелі, cron чи HTTP-роутера — дедуплікація планів (`plan_key`), заборона guest-checkout/змішаного кошика, масова зміна ціни з терміном повідомлення — все це відповідальність застосунку, що підключає SDK (див. п. 8.10).
+
+### 8.1. Створення плану — ОБОВ'ЯЗКОВИЙ виклик "нескінченного розкладу"
+
+> **⚠️ ВАЖЛИВО:** одразу після успішного створення або оновлення плану банк вимагає окремий виклик `plan/version/update_v1` ("нескінченний розклад"). Якщо його пропустити, банк **мовчки застосує прихований термін дії плану**, після якого підписки перестануть поновлюватись без жодної помітної помилки. Тому НЕ використовуйте `CreatePlan`/`UpdatePlan` окремо без цього другого виклику — для цього є `PlanLifecycleOrchestrator`, який виконує обидва кроки і явно повідомляє, якщо другий крок не пройшов.
+
+```PHP
+use AlliancePay\Sdk\Payment\Dto\Subscription\Plan\PlanRequestDTO;
+use AlliancePay\Sdk\Payment\Subscription\Plan\PlanLifecycleOrchestrator;
+
+// Тріал (перший платіж безкоштовний) + основний період — правило з coinAmount=0 для першого платежу
+$planData = [
+    'name' => 'Місячна підписка',
+    // Обов'язкове: банк відхиляє план із порожнім description (VALIDATION_ERROR: "NotBlank"),
+    // хоча специфікація позначала поле опційним ("description?").
+    'description' => 'Місячна підписка на сервіс',
+    'categorySubcategoryIndicator' => 'C101',
+    'merchantId' => $authDto->getMerchantId(),
+    'rules' => [
+        [
+            'paymentNumberFrom' => 1,
+            'paymentNumberTo' => 1,
+            'intervalValue' => 1,
+            'intervalUnit' => 'MONTH',
+            'coinAmount' => 0, // тріал
+            'currency' => '980',
+        ],
+        [
+            'paymentNumberFrom' => 2,
+            'paymentNumberTo' => 999,
+            'intervalValue' => 1,
+            'intervalUnit' => 'MONTH',
+            'coinAmount' => 10000, // 100.00 UAH
+            'currency' => '980',
+        ],
+    ],
+];
+
+$planRequest = PlanRequestDTO::fromArray($planData);
+$orchestrator = new PlanLifecycleOrchestrator();
+
+try {
+    $result = $orchestrator->createPlanWithInfiniteSchedule($planRequest, $authDto);
+
+    if (!$result->isFullySuccessful()) {
+        // План створено, але "нескінченний розклад" не застосувався — потребує ручного втручання,
+        // НЕ повідомляйте користувачу про успіх без додаткової перевірки.
+        error_log('Infinite schedule failed: ' . $result->getInfiniteScheduleError());
+    }
+
+    $planId = $result->getPlanResponse()->getPlanId();
+    $versionId = $result->getPlanResponse()->getVersionId();
+} catch (\AlliancePay\Sdk\Exceptions\CreatePlanException $e) {
+    echo "Помилка створення плану: " . $e->getMessage();
+}
+```
+
+Для оновлення наявного плану — `PlanRequestDTO::fromArray([...'planId' => $planId])` + `$orchestrator->updatePlanWithInfiniteSchedule(...)`.
+
+### 8.2. Статус плану та видалення версії
+
+```PHP
+use AlliancePay\Sdk\Payment\Dto\Subscription\Plan\PlanStatusUpdateRequestDTO;
+use AlliancePay\Sdk\Payment\Subscription\Plan\UpdatePlanStatus;
+
+$updateStatus = new UpdatePlanStatus();
+$statusDto = new PlanStatusUpdateRequestDTO($planId, $authDto->getMerchantId(), 'PAUSED');
+$response = $updateStatus->updatePlanStatus($statusDto, $authDto);
+```
+
+```PHP
+use AlliancePay\Sdk\Payment\Dto\Subscription\Plan\PlanVersionDeleteRequestDTO;
+use AlliancePay\Sdk\Payment\Subscription\Plan\DeletePlanVersion;
+
+$deleteVersion = new DeletePlanVersion();
+$response = $deleteVersion->deletePlanVersion(
+    new PlanVersionDeleteRequestDTO($planId, $versionId),
+    $authDto
+);
+```
+
+### 8.3. Деталі плану та пошук
+
+```PHP
+use AlliancePay\Sdk\Payment\Dto\Subscription\Plan\GetPlanRequestDTO;
+use AlliancePay\Sdk\Payment\Subscription\Plan\GetPlan;
+
+$getPlan = new GetPlan();
+$details = $getPlan->getPlan(new GetPlanRequestDTO($planId), $authDto);
+
+// Завжди отримуйте дані свіжими від банку для сторінок діагностики/підтримки,
+// а не з локального кешу останнього callback — той може бути неповним.
+$activeSubscriptions = $details->getSubscriptionStatistics()->getPending();
+```
+
+```PHP
+use AlliancePay\Sdk\Payment\Dto\Subscription\Plan\SearchPlansRequestDTO;
+use AlliancePay\Sdk\Payment\Subscription\Plan\SearchPlans;
+
+$searchPlans = new SearchPlans();
+$result = $searchPlans->searchPlans(
+    SearchPlansRequestDTO::fromArray([
+        'merchantId' => $authDto->getMerchantId(),
+        'filters' => [['operator' => 'EQUALS', 'value' => 'ACTIVE', 'field' => 'status']],
+    ]),
+    $authDto
+);
+
+foreach ($result->getPlans() as $plan) {
+    echo $plan->getPlanId() . ': ' . $plan->getName() . "\n";
+}
+```
+
+### 8.4. Оформлення підписки клієнта
+
+> **Правила застосунку (не забезпечуються SDK):** підписка вимагає автентифікованого власника (без guest checkout) і не може комбінуватись з іншим товаром чи іншим планом в одному замовленні — застосунок повинен блокувати ці сценарії на рівні кошика/чекауту.
+
+```PHP
+use AlliancePay\Sdk\Payment\Dto\Subscription\SubscriptionOrder\SubscriptionOrderRequestDTO;
+use AlliancePay\Sdk\Payment\Subscription\SubscriptionOrder\CreateSubscriptionOrder;
+use AlliancePay\Sdk\Services\RequestIdentification\GenerateRequestIdentification;
+
+$orderData = [
+    'planId' => $planId,
+    'merchantId' => $authDto->getMerchantId(),
+    'merchantRequestId' => GenerateRequestIdentification::generateRequestId(),
+    'statusPageType' => 'STATUS_TIMER_PAGE',
+    'successUrl' => 'https://your-site.com/success',
+    'failUrl' => 'https://your-site.com/fail',
+    'hppPaymentMethods' => ['CARD', 'APPLE_PAY', 'GOOGLE_PAY'],
+    'customerData' => ['senderCustomerId' => 'customer_id_1'],
+];
+
+$orderRequest = SubscriptionOrderRequestDTO::fromArray($orderData);
+$createSubscriptionOrder = new CreateSubscriptionOrder();
+
+try {
+    $response = $createSubscriptionOrder->createSubscriptionOrder($orderRequest, $authDto);
+    // Переадресовуйте користувача на $response->getRedirectUrl(), збережіть $response->getHppOrderId()
+} catch (\AlliancePay\Sdk\Exceptions\CreateSubscriptionOrderException $e) {
+    echo "Помилка оформлення підписки: " . $e->getMessage();
+}
+```
+
+### 8.5. Скасування підписки
+
+Скасування виконується **виключно за `hppOrderId`** (банківським ідентифікатором замовлення), ніколи за локальним ID плану чи підписки. Історію (заплановані платежі, знімок правил на момент оформлення) не варто видаляти локально — лише змінювати статус.
+
+```PHP
+use AlliancePay\Sdk\Payment\Dto\Subscription\SubscriptionOrder\SubscriptionOrderCancelRequestDTO;
+use AlliancePay\Sdk\Payment\Subscription\SubscriptionOrder\CancelSubscriptionOrder;
+
+$cancelSubscriptionOrder = new CancelSubscriptionOrder();
+$response = $cancelSubscriptionOrder->cancelSubscriptionOrder(
+    new SubscriptionOrderCancelRequestDTO($hppOrderId, $authDto->getMerchantId()),
+    $authDto
+);
+```
+
+### 8.6. Ручний тригер рекурентного платежу (для служби підтримки)
+
+Використовується, коли автоматичний тригер банку не спрацював для конкретної дати, а чекати наступного циклу неприйнятно. **Це не клієнтська операція** — SDK не обмежує, хто може її викликати, тож застосунок повинен сам гарантувати, що виклик доступний лише привілейованим користувачам.
+
+> **⚠️ ВАЖЛИВО:** за офіційною специфікацією банку (`Recurring payment docs/api_scheduled_payments-recurring_subscription_v1.md`) обов'язкові поля запиту — `merchantRequestId`, `merchantId`, `date`, `scheduledPaymentId` (`merchantComment` — опційний). **`hppOrderId` у контракті цього ендпоінта відсутній взагалі** — банк розрізняє платіж лише за `scheduledPaymentId`, який береться з власного журналу запланованих платежів застосунку (заповнюється з попередніх колбеків — банк не надає ендпоінт для пошуку запланованих платежів якимось іншим способом). `date` — повний часовий штамп із мілісекундами й офсетом, напр. `2024-12-13 15:35:41.170+02:00` (не `YYYY-MM-DD`).
+
+```PHP
+use AlliancePay\Sdk\Payment\Dto\Subscription\Payment\RecurringPaymentTriggerRequestDTO;
+use AlliancePay\Sdk\Payment\Subscription\Payment\TriggerRecurringPayment;
+use AlliancePay\Sdk\Services\RequestIdentification\GenerateRequestIdentification;
+
+$trigger = new TriggerRecurringPayment();
+$response = $trigger->triggerRecurringPayment(
+    new RecurringPaymentTriggerRequestDTO(
+        GenerateRequestIdentification::generateRequestId(),
+        $authDto->getMerchantId(),
+        $scheduledPaymentDate, // "2024-12-13 15:35:41.170+02:00"
+        $scheduledPaymentId,   // з власного журналу запланованих платежів застосунку
+    ),
+    $authDto
+);
+// Відповідь: $response->getOperationId(), $response->getEcomOperationId(), $response->getStatus()
+```
+
+### 8.7. Обробка callback підписок
+
+Підписки використовують **окремий** обробник `SubscriptionCallbackHandler` (не `CallbackHandler` з п. 3) — payload підписок структурно відрізняється (поле `operation` не завжди присутнє, є `recurringTransactionType`/`scheduledPayments`). Перевірка підпису відбувається так само безумовно, до будь-якого парсингу.
+
+```PHP
+use AlliancePay\Sdk\Payment\Subscription\Callback\SubscriptionCallbackHandler;
+use AlliancePay\Sdk\Payment\Dto\Subscription\Callback\SubscriptionCallbackDTO;
+
+$callbackHandler = new SubscriptionCallbackHandler();
+
+try {
+    /** @var SubscriptionCallbackDTO $callback */
+    $callback = $callbackHandler->handle($authDto); // або handle($authDto, $payload), якщо тіло вже є
+
+    // Резолюція підписки — ЛИШЕ за hppOrderId, ніколи за planId/productId
+    $hppOrderId = $callback->getHppOrderId();
+
+    // absent/порожнє recurringTransactionType = перший платіж; будь-яке інше значення = рекурентний
+    if ($callback->isInitialPayment()) {
+        // ...
+    }
+
+    // operation не завжди присутній у доставці — перевіряйте перед використанням
+    if ($operation = $callback->getOperation()) {
+        // Ідемпотентність — ЗА operationId (не булевим прапорцем "вже оброблено")
+        $operationId = $operation->getOperationId();
+    }
+
+    // Best-effort звірка суми — ніколи не блокує вже проведений платіж, лише попереджає
+    if ($warning = $callback->reconcileAmount($expectedCoinAmount)) {
+        error_log($warning);
+    }
+
+    http_response_code(200);
+    echo 'OK';
+} catch (\AlliancePay\Sdk\Exceptions\CallbackException $e) {
+    http_response_code(400);
+    echo 'Error';
+}
+```
+
+> **Часткові доставки:** банк може надіслати кілька окремих доставок для однієї логічної події (наприклад, одну — лише зі статусом, іншу — з повним `operation`). Використовуйте `$callback->getRawPayload()`, щоб відрізнити "поле відсутнє в цій доставці" від "поле присутнє й дорівнює null", і ніколи не затирайте раніше збережені, багатші дані значенням `null` з пізнішої, "біднішої" доставки.
+
+### 8.8. Рекомендації інтегратору
+
+- **Дедуплікація плану:** SDK не запобігає створенню дубліката плану при подвійному кліку чи паралельному запиті — реалізуйте власний ключ дедуплікації (наприклад, хеш від `merchantId + productId + categoryIndicator + normalized(rules)`) на боці застосунку перед викликом `createPlan()`.
+- **⚠️ `merchantRequestId` НЕ є безпечним ключем для повторного запиту** для `createPlan()`/`createSubscriptionOrder()` — повторний виклик з тим самим значенням після мережевого збою створює **новий об'єкт** на боці банку, а не повертає оригінальний. Не ретраїте ці виклики автоматично без власної дедуплікації.
+- **Ідемпотентність callback-ів** — ведіть облік за `operationId` (не булевим прапорцем "вже оброблено"), інакше перша "бідна" доставка заблокує обробку пізнішої, "багатшої".
+- **Явна обробка статусів** — гілкуйте по всіх відомих статусах (`SUCCESS`/`FAIL`/`PENDING` та інші, включно з paused/invalidated/retry), уникаючи мовчазної гілки за замовчуванням.

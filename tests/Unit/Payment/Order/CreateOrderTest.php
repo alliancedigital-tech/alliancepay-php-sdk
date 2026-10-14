@@ -122,10 +122,8 @@ class CreateOrderTest extends TestCase
             [
                 'baseUrl' => 'https://api.test.ua',
                 'merchantId' => 'M123',
-                'serviceCode' => 'S1',
-                'authenticationKey' => 'key',
-                'deviceId' => 'dev',
-                'refreshToken' => 'ref'
+                'jwsPrivateKey' => 'test-private-key-pem',
+                'jwsKeyId' => 'test-kid',
             ]
         );
 

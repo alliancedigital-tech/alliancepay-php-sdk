@@ -16,7 +16,6 @@ use AlliancePay\Sdk\Payment\Refund\Validation\ValidateRefundData;
 use AlliancePay\Sdk\Services\Authorization\Dto\AuthorizationDTO;
 use AlliancePay\Sdk\Services\Clients\HttpClientFactory;
 use AlliancePay\Sdk\Services\Clients\HttpClientInterface;
-use AlliancePay\Sdk\Services\Encryption\JweEncryptionService;
 use AlliancePay\Sdk\Traits\ResponseHandlerTrait;
 use Throwable;
 
@@ -46,20 +45,11 @@ class RefundOrder
         try {
             $refundRequestId = $refundRequestDTO->getMerchantRequestId();
             $this->httpClient->applyRequestId($refundRequestId);
-            $publicKey = json_decode($authorizationDTO->getServerPublic(), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new RefundOrderException("Invalid server public key format (JSON error)");
-            }
-
-            $preparedRefundData = JweEncryptionService::encrypt(
-                $refundRequestDTO->toArray(),
-                $publicKey
-            );
 
             $options = $this->httpClient->buildOptionsFromAuthDto(
                 $authorizationDTO,
-                $preparedRefundData,
-                false
+                HttpClientInterface::PATH_REFUND,
+                $refundRequestDTO->toArray()
             );
 
             $response = $this->httpClient->request(
@@ -70,18 +60,7 @@ class RefundOrder
 
             $this->handleResponseErrors($response, RefundOrderException::class);
 
-            if (empty($response['body']['jwe'])) {
-                throw new RefundOrderException(
-                    'Could not refund the order. Jwe token was not received in response.'
-                );
-            }
-
-            $decryptedRefundData = JweEncryptionService::decrypt(
-                $authorizationDTO->getAuthenticationKey(),
-                $response['body']['jwe']
-            );
-
-            return RefundResponseDTO::createFromArray($decryptedRefundData);
+            return RefundResponseDTO::createFromArray($response['body']);
 
         } catch (RefundOrderException $e) {
             throw $e;

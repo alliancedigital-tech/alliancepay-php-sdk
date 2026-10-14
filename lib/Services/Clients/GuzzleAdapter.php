@@ -43,7 +43,7 @@ class GuzzleAdapter extends HttpBase implements HttpClientInterface
 
         return [
             'code'    => $response->getStatusCode(),
-            'body'    => json_decode($response->getBody()->getContents(), true),
+            'body'    => $this->parseResponseBody($response->getBody()->getContents(), $url),
             'headers' => $response->getHeaders(),
         ];
     }

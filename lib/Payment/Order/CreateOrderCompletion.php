@@ -17,7 +17,6 @@ use AlliancePay\Sdk\Payment\Order\Validation\ValidateOrderData;
 use AlliancePay\Sdk\Services\Authorization\Dto\AuthorizationDTO;
 use AlliancePay\Sdk\Services\Clients\HttpClientFactory;
 use AlliancePay\Sdk\Services\Clients\HttpClientInterface;
-use AlliancePay\Sdk\Services\Encryption\JweEncryptionService;
 use AlliancePay\Sdk\Traits\ResponseHandlerTrait;
 use Throwable;
 
@@ -56,20 +55,10 @@ class CreateOrderCompletion
                 $completionRequestDTO->getCoinAmount()
             );
 
-            $publicKey = json_decode($authorizationDTO->getServerPublic(), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new CreateCompletionException('Invalid server public key format (JSON error)');
-            }
-
-            $encryptedPayload = JweEncryptionService::encrypt(
-                $completionRequestDTO->toArray(),
-                $publicKey
-            );
-
             $options = $this->httpClient->buildOptionsFromAuthDto(
                 $authorizationDTO,
-                $encryptedPayload,
-                false
+                HttpClientInterface::PATH_COMPLETION,
+                $completionRequestDTO->toArray()
             );
 
             $response = $this->httpClient->request(
@@ -80,18 +69,7 @@ class CreateOrderCompletion
 
             $this->handleResponseErrors($response, CreateCompletionException::class);
 
-            if (empty($response['body']['jwe'])) {
-                throw new CreateCompletionException(
-                    'Could not complete the order. JWE token was not received in response.'
-                );
-            }
-
-            $decryptedData = JweEncryptionService::decrypt(
-                $authorizationDTO->getAuthenticationKey(),
-                $response['body']['jwe']
-            );
-
-            return OrderCompletionResponseDTO::fromArray($decryptedData);
+            return OrderCompletionResponseDTO::fromArray($response['body']);
 
         } catch (CreateCompletionException $e) {
             throw $e;

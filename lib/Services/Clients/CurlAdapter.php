@@ -39,7 +39,7 @@ class CurlAdapter extends HttpBase implements HttpClientInterface
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
         if (!empty($options['body'])) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($options['body']));
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $options['body']);
         }
 
         if (!empty($options['json'])) {
@@ -60,7 +60,7 @@ class CurlAdapter extends HttpBase implements HttpClientInterface
 
         return [
             'code'    => $httpCode,
-            'body'    => json_decode($response, true),
+            'body'    => $this->parseResponseBody($response !== false ? $response : '', $url),
             'headers' => [],
         ];
     }

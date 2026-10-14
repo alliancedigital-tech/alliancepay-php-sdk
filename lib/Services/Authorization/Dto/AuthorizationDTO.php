@@ -18,22 +18,20 @@ final class AuthorizationDTO
 {
     public const AUTH_PROPERTY_BASE_URL = 'baseUrl';
     public const AUTH_PROPERTY_MERCHANT_ID = 'merchantId';
-    public const AUTH_PROPERTY_SERVICE_CODE = 'serviceCode';
     public const AUTH_PROPERTY_AUTHENTICATION_KEY = 'authenticationKey';
-    public const AUTH_PROPERTY_REFRESH_TOKEN = 'refreshToken';
     public const AUTH_PROPERTY_AUTH_TOKEN = 'authToken';
-    public const AUTH_PROPERTY_DEVICE_ID = 'deviceId';
     public const AUTH_PROPERTY_SERVER_PUBLIC = 'serverPublic';
     public const AUTH_PROPERTY_TOKEN_EXPIRATION_DATE_TIME = 'tokenExpirationDateTime';
+    public const AUTH_PROPERTY_JWS_PRIVATE_KEY = 'jwsPrivateKey';
+    public const AUTH_PROPERTY_JWS_KEY_ID = 'jwsKeyId';
 
     private function __construct(
         private string $baseUrl,
         private string $merchantId,
-        private string $serviceCode,
-        private string $authenticationKey,
-        private string $refreshToken = '',
+        private string $jwsPrivateKey,
+        private string $jwsKeyId,
+        private string $authenticationKey = '',
         private string $authToken = '',
-        private string $deviceId = '',
         private string $serverPublic = '',
         private ?DateTimeImmutable $tokenExpirationDateTime = null,
     ) {
@@ -58,25 +56,9 @@ final class AuthorizationDTO
     /**
      * @return string
      */
-    public function getServiceCode(): string
-    {
-        return $this->serviceCode;
-    }
-
-    /**
-     * @return string
-     */
     public function getAuthenticationKey(): string
     {
         return $this->authenticationKey;
-    }
-
-    /**
-     * @return string
-     */
-    public function getRefreshToken(): string
-    {
-        return $this->refreshToken;
     }
 
     /**
@@ -90,17 +72,25 @@ final class AuthorizationDTO
     /**
      * @return string
      */
-    public function getDeviceId(): string
+    public function getServerPublic(): string
     {
-        return $this->deviceId;
+        return $this->serverPublic;
     }
 
     /**
      * @return string
      */
-    public function getServerPublic(): string
+    public function getJwsPrivateKey(): string
     {
-        return $this->serverPublic;
+        return $this->jwsPrivateKey;
+    }
+
+    /**
+     * @return string
+     */
+    public function getJwsKeyId(): string
+    {
+        return $this->jwsKeyId;
     }
 
     /**
@@ -121,11 +111,11 @@ final class AuthorizationDTO
         if (empty($authData)
             || empty($authData[self::AUTH_PROPERTY_BASE_URL])
             || empty($authData[self::AUTH_PROPERTY_MERCHANT_ID])
-            || empty($authData[self::AUTH_PROPERTY_SERVICE_CODE])
-            || empty($authData[self::AUTH_PROPERTY_AUTHENTICATION_KEY])
+            || empty($authData[self::AUTH_PROPERTY_JWS_PRIVATE_KEY])
+            || empty($authData[self::AUTH_PROPERTY_JWS_KEY_ID])
         ) {
             throw new AuthenticationException(
-                'Base URL, Merchant ID, Service Code and Authentication Key are required.'
+                'Base URL, Merchant ID, JWS Private Key and JWS Key ID are required.'
             );
         }
 
@@ -154,11 +144,10 @@ final class AuthorizationDTO
         return new self(
             baseUrl: $authData[self::AUTH_PROPERTY_BASE_URL],
             merchantId: $authData[self::AUTH_PROPERTY_MERCHANT_ID],
-            serviceCode: $authData[self::AUTH_PROPERTY_SERVICE_CODE],
-            authenticationKey: $authData[self::AUTH_PROPERTY_AUTHENTICATION_KEY],
-            refreshToken: $authData[self::AUTH_PROPERTY_REFRESH_TOKEN] ?? '',
+            jwsPrivateKey: $authData[self::AUTH_PROPERTY_JWS_PRIVATE_KEY],
+            jwsKeyId: $authData[self::AUTH_PROPERTY_JWS_KEY_ID],
+            authenticationKey: $authData[self::AUTH_PROPERTY_AUTHENTICATION_KEY] ?? '',
             authToken: $authData[self::AUTH_PROPERTY_AUTH_TOKEN] ?? '',
-            deviceId: $authData[self::AUTH_PROPERTY_DEVICE_ID] ?? '',
             serverPublic: $authData[self::AUTH_PROPERTY_SERVER_PUBLIC] ?? '',
             tokenExpirationDateTime: $authData[self::AUTH_PROPERTY_TOKEN_EXPIRATION_DATE_TIME]
         );
@@ -172,11 +161,10 @@ final class AuthorizationDTO
         return [
             self::AUTH_PROPERTY_BASE_URL => $this->baseUrl,
             self::AUTH_PROPERTY_MERCHANT_ID => $this->merchantId,
-            self::AUTH_PROPERTY_SERVICE_CODE => $this->serviceCode,
+            self::AUTH_PROPERTY_JWS_PRIVATE_KEY => $this->jwsPrivateKey,
+            self::AUTH_PROPERTY_JWS_KEY_ID => $this->jwsKeyId,
             self::AUTH_PROPERTY_AUTHENTICATION_KEY => $this->authenticationKey,
-            self::AUTH_PROPERTY_REFRESH_TOKEN => $this->refreshToken,
             self::AUTH_PROPERTY_AUTH_TOKEN => $this->authToken,
-            self::AUTH_PROPERTY_DEVICE_ID => $this->deviceId,
             self::AUTH_PROPERTY_SERVER_PUBLIC => $this->serverPublic,
             self::AUTH_PROPERTY_TOKEN_EXPIRATION_DATE_TIME =>
                 $this->tokenExpirationDateTime->format(DateTimeImmutableProvider::DEFAULT_DATE_TIME_FORMAT),

@@ -38,6 +38,7 @@ class CreateOrder
             $this->httpClient->applyRequestId($createOrderRequestId);
             $options = $this->httpClient->buildOptionsFromAuthDto(
                 $authorizationDto,
+                HttpClientInterface::PATH_CREATE_ORDER,
                 $orderDataDto->toArray()
             );
 

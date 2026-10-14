@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace AlliancePay\Sdk\Payment\Dto\Callback;
 
 use AlliancePay\Sdk\Exceptions\CallbackException;
+use AlliancePay\Sdk\Payment\Dto\Operations\OperationFactory;
 use AlliancePay\Sdk\Payment\Dto\Operations\OperationPurchaseDTO;
 use AlliancePay\Sdk\Payment\Dto\Operations\OperationRefundDTO;
 use AlliancePay\Sdk\Services\DateTime\DateTimeImmutableProvider;
@@ -58,7 +59,7 @@ final class CallbackDTO
     {
         $operationData = $data[self::PROPERTY_OPERATION]
             ?? throw new CallbackException('Operation data is missing');
-        $operation = self::applyOperationObject($operationData);
+        $operation = OperationFactory::fromArray($operationData);
 
         return new self(
             ecomOrderId: $data[self::PROPERTY_ECOM_ORDER_ID],
@@ -108,25 +109,5 @@ final class CallbackDTO
             self::PROPERTY_EXPIRED_ORDER_DATE => $this->expiredOrderDate,
             self::PROPERTY_OPERATION => $this->operation->toArray(),
         ];
-    }
-
-    /**
-     * @param array $operation
-     * @return OperationPurchaseDTO|OperationRefundDTO
-     * @throws CallbackException
-     */
-    private static function applyOperationObject(array $operation): OperationPurchaseDTO|OperationRefundDTO
-    {
-        $type = $operation[OperationPurchaseDTO::PROPERTY_TYPE]
-            ?? throw new CallbackException('Operation type is missing');
-
-        return match ($type) {
-            OperationPurchaseDTO::OPERATION_TYPE,
-            OperationPurchaseDTO::OPERATION_TYPE_A2A,
-            OperationPurchaseDTO::OPERATION_TYPE_PREAUTH,
-            OperationPurchaseDTO::OPERATION_TYPE_COMPLETION => OperationPurchaseDTO::fromArray($operation),
-            OperationRefundDTO::OPERATION_TYPE              => OperationRefundDTO::fromArray($operation),
-            default => throw new CallbackException('Unknown operation type: ' . $type),
-        };
     }
 }

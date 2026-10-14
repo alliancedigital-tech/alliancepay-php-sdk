@@ -1,7 +1,7 @@
 {
     "name": "alliance/alliancepay-payment-sdk",
     "description": "PHP SDK for AlliancePay payment gateway integration.",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "type": "library",
     "license": "MIT",
     "authors": [

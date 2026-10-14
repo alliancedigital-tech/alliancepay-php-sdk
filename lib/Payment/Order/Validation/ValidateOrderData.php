@@ -9,6 +9,7 @@ namespace AlliancePay\Sdk\Payment\Order\Validation;
 
 use AlliancePay\Sdk\Exceptions\CompletionAmountException;
 use AlliancePay\Sdk\Exceptions\ValidateDataException;
+use AlliancePay\Sdk\Payment\Validation\CustomerDataRules;
 use DateTimeImmutable;
 use DateTimeZone;
 
@@ -206,96 +207,7 @@ class ValidateOrderData
         'customerData' => [
             'type' => 'array',
             'required' => true,
-            'properties' => [
-                'senderCustomerId' => [
-                    'type' => 'string',
-                    'maxLength' => 255,
-                    'required' => true,
-                ],
-                'senderFirstName' => [
-                    'type' => 'string',
-                    'maxLength' => 30,
-                    'required' => false,
-                ],
-                'senderLastName' => [
-                    'type' => 'string',
-                    'maxLength' => 30,
-                    'required' => false,
-                ],
-                'senderMiddleName' => [
-                    'type' => 'string',
-                    'maxLength' => 30,
-                    'required' => false,
-                ],
-                'senderEmail' => [
-                    'type' => 'string',
-                    'maxLength' => 256,
-                    'required' => false,
-                ],
-                'senderCountry' => [
-                    'type' => 'string',
-                    'maxLength' => 3,
-                    'format' => 'iso3166-1-numeric',
-                    'required' => false,
-                ],
-                'senderRegion' => [
-                    'type' => 'string',
-                    'maxLength' => 255,
-                    'required' => false,
-                ],
-                'senderCity' => [
-                    'type' => 'string',
-                    'maxLength' => 25,
-                    'required' => false,
-                ],
-                'senderStreet' => [
-                    'type' => 'string',
-                    'maxLength' => 35,
-                    'required' => false,
-                ],
-                'senderAdditionalAddress' => [
-                    'type' => 'string',
-                    'maxLength' => 255,
-                    'required' => false,
-                ],
-                'senderItn' => [
-                    'type' => 'string',
-                    'maxLength' => 20,
-                    'required' => false,
-                ],
-                'senderPassport' => [
-                    'type' => 'string',
-                    'maxLength' => 255,
-                    'required' => false,
-                ],
-                'senderIp' => [
-                    'type' => 'string',
-                    'maxLength' => 50,
-                    'required' => false,
-                ],
-                'senderPhone' => [
-                    'type' => 'string',
-                    'maxLength' => 20,
-                    'format' => 'digits-only',
-                    'required' => false,
-                ],
-                'senderBirthday' => [
-                    'type' => 'string',
-                    'maxLength' => 50,
-                    'format' => 'date-dmy',
-                    'required' => false,
-                ],
-                'senderGender' => [
-                    'type' => 'string',
-                    'maxLength' => 50,
-                    'required' => false,
-                ],
-                'senderZipCode' => [
-                    'type' => 'string',
-                    'maxLength' => 50,
-                    'required' => false,
-                ],
-            ],
+            'properties' => CustomerDataRules::PROPERTIES,
         ],
     ];
 

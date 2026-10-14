@@ -15,7 +15,6 @@ use AlliancePay\Sdk\Payment\Dto\Order\OrderRequestCompletionDTO;
 use AlliancePay\Sdk\Payment\Order\CreateOrderCompletion;
 use AlliancePay\Sdk\Services\Authorization\Dto\AuthorizationDTO;
 use AlliancePay\Sdk\Services\Clients\HttpClientInterface;
-use AlliancePay\Sdk\Services\Encryption\JweEncryptionService;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -25,38 +24,6 @@ use RuntimeException;
 class CreateOrderCompletionTest extends TestCase
 {
     /**
-     * @return array
-     */
-    private function getTestPublicKey(): array
-    {
-        return json_decode(
-            '{"kty":"EC","use":"enc","crv":"P-384",
-            "x":"g4NSeivuFxFCkRo7mHgi6PA8_RFgO0obFZgT0ZufBT1hmvVF-4Zb9arnn7sbVHyT",
-            "y":"8ufRfdLcyh2OmOE9m35iNskBHt7JI3xGpB-gLzDpgD0pnxVEql0RIC5nL6z_TXN_",
-            "alg":"ECDH-ES+A256KW"}',
-            true
-        );
-    }
-
-    /**
-     * @return string
-     */
-    private function getTestPrivateKey(): string
-    {
-        return '{"kty":"EC","d":"-eTnNxa0wuJq8fZNfMPXLZDybbdUyB8hLHVxLbsAK7HKAIRHxQC21f95i_bufNli",
-        "use":"enc","crv":"P-384","x":"g4NSeivuFxFCkRo7mHgi6PA8_RFgO0obFZgT0ZufBT1hmvVF-4Zb9arnn7sbVHyT",
-        "y":"8ufRfdLcyh2OmOE9m35iNskBHt7JI3xGpB-gLzDpgD0pnxVEql0RIC5nL6z_TXN_","alg":"ECDH-ES+A256KW"}';
-    }
-
-    /**
-     * @return array
-     */
-    private function getTestPrivateKeyAsArray(): array
-    {
-        return json_decode($this->getTestPrivateKey(), true);
-    }
-
-    /**
      * @return AuthorizationDTO
      * @throws AuthenticationException
      */
@@ -65,11 +32,8 @@ class CreateOrderCompletionTest extends TestCase
         return AuthorizationDTO::fromArray([
             'baseUrl' => 'https://api.test.ua',
             'merchantId' => 'M-123',
-            'serviceCode' => 'S-1',
-            'authenticationKey' => $this->getTestPrivateKey(),
-            'serverPublic' => json_encode($this->getTestPublicKey()),
-            'deviceId' => 'dev-1',
-            'refreshToken' => 'ref-1',
+            'jwsPrivateKey' => 'test-private-key-pem',
+            'jwsKeyId' => 'test-kid',
         ]);
     }
 
@@ -90,7 +54,7 @@ class CreateOrderCompletionTest extends TestCase
     }
 
     /**
-     * Simulated decrypted response payload from the /completion endpoint.
+     * @return array
      */
     private function fakeCompletionResponseData(): array
     {
@@ -128,25 +92,19 @@ class CreateOrderCompletionTest extends TestCase
      * @return void
      * @throws CreateCompletionException
      * @throws AuthenticationException
-     * @throws \AlliancePay\Sdk\Exceptions\EncryptionException
      */
     public function test_create_completion_returns_order_completion_response_dto(): void
     {
         $auth = $this->buildAuthDto();
         $completionDto = $this->buildCompletionDTO(1000);
 
-        $fakeJwe = JweEncryptionService::encrypt(
-            $this->fakeCompletionResponseData(),
-            $this->getTestPublicKey()
-        );
-
         $httpClientMock = $this->createMock(HttpClientInterface::class);
         $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'encrypted']);
+        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'jws-token']);
         $httpClientMock->expects($this->once())
             ->method('request')
             ->with(HttpClientInterface::METHOD_POST, 'https://api.test.ua/completion')
-            ->willReturn(['code' => 200, 'body' => ['jwe' => $fakeJwe], 'headers' => []]);
+            ->willReturn(['code' => 200, 'body' => $this->fakeCompletionResponseData(), 'headers' => []]);
 
         $service = new CreateOrderCompletion($httpClientMock);
         $result = $service->createCompletion($completionDto, $auth, 1000);
@@ -158,23 +116,17 @@ class CreateOrderCompletionTest extends TestCase
      * @return void
      * @throws CreateCompletionException
      * @throws AuthenticationException
-     * @throws \AlliancePay\Sdk\Exceptions\EncryptionException
      */
     public function test_create_completion_dto_has_correct_type(): void
     {
         $auth = $this->buildAuthDto();
         $completionDto = $this->buildCompletionDTO(1000);
 
-        $fakeJwe = JweEncryptionService::encrypt(
-            $this->fakeCompletionResponseData(),
-            $this->getTestPublicKey()
-        );
-
         $httpClientMock = $this->createMock(HttpClientInterface::class);
         $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'e']);
+        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'jws-token']);
         $httpClientMock->method('request')
-            ->willReturn(['code' => 200, 'body' => ['jwe' => $fakeJwe], 'headers' => []]);
+            ->willReturn(['code' => 200, 'body' => $this->fakeCompletionResponseData(), 'headers' => []]);
 
         $service = new CreateOrderCompletion($httpClientMock);
         $result = $service->createCompletion($completionDto, $auth, 1000);
@@ -187,75 +139,22 @@ class CreateOrderCompletionTest extends TestCase
      * @return void
      * @throws CreateCompletionException
      * @throws AuthenticationException
-     * @throws \AlliancePay\Sdk\Exceptions\EncryptionException
      */
     public function test_create_completion_uses_post_method(): void
     {
         $auth = $this->buildAuthDto();
         $completionDto = $this->buildCompletionDTO(1000);
 
-        $fakeJwe = JweEncryptionService::encrypt(
-            $this->fakeCompletionResponseData(),
-            $this->getTestPublicKey()
-        );
-
         $httpClientMock = $this->createMock(HttpClientInterface::class);
         $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'e']);
+        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'jws-token']);
         $httpClientMock->expects($this->once())
             ->method('request')
             ->with(HttpClientInterface::METHOD_POST, $this->anything())
-            ->willReturn(['code' => 200, 'body' => ['jwe' => $fakeJwe], 'headers' => []]);
+            ->willReturn(['code' => 200, 'body' => $this->fakeCompletionResponseData(), 'headers' => []]);
 
         $service = new CreateOrderCompletion($httpClientMock);
         $service->createCompletion($completionDto, $auth, 1000);
-    }
-
-    /**
-     * @return void
-     * @throws CreateCompletionException
-     * @throws AuthenticationException
-     */
-    public function test_create_completion_throws_exception_when_jwe_missing_from_response(): void
-    {
-        $httpClientMock = $this->createMock(HttpClientInterface::class);
-        $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'e']);
-        $httpClientMock->method('request')->willReturn([
-            'code' => 200,
-            'body' => ['status' => 'ok'],
-            'headers' => [],
-        ]);
-
-        $service = new CreateOrderCompletion($httpClientMock);
-
-        $this->expectException(CreateCompletionException::class);
-        $this->expectExceptionMessage('Could not complete the order. JWE token was not received in response.');
-
-        $service->createCompletion($this->buildCompletionDTO(1000), $this->buildAuthDto(), 1000);
-    }
-
-    /**
-     * @return void
-     * @throws CreateCompletionException
-     * @throws AuthenticationException
-     */
-    public function test_create_completion_throws_exception_when_jwe_body_empty(): void
-    {
-        $httpClientMock = $this->createMock(HttpClientInterface::class);
-        $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'e']);
-        $httpClientMock->method('request')->willReturn([
-            'code' => 200,
-            'body' => ['jwe' => ''],
-            'headers' => [],
-        ]);
-
-        $service = new CreateOrderCompletion($httpClientMock);
-
-        $this->expectException(CreateCompletionException::class);
-
-        $service->createCompletion($this->buildCompletionDTO(1000), $this->buildAuthDto(), 1000);
     }
 
     /**
@@ -267,7 +166,7 @@ class CreateOrderCompletionTest extends TestCase
     {
         $httpClientMock = $this->createMock(HttpClientInterface::class);
         $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'e']);
+        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'jws-token']);
         $httpClientMock->expects($this->never())->method('request');
 
         $service = new CreateOrderCompletion($httpClientMock);
@@ -284,7 +183,7 @@ class CreateOrderCompletionTest extends TestCase
     {
         $httpClientMock = $this->createMock(HttpClientInterface::class);
         $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'e']);
+        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'jws-token']);
 
         $service = new CreateOrderCompletion($httpClientMock);
 
@@ -304,7 +203,7 @@ class CreateOrderCompletionTest extends TestCase
     {
         $httpClientMock = $this->createMock(HttpClientInterface::class);
         $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'e']);
+        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'jws-token']);
 
         $service = new CreateOrderCompletion($httpClientMock);
 
@@ -324,7 +223,7 @@ class CreateOrderCompletionTest extends TestCase
     {
         $httpClientMock = $this->createMock(HttpClientInterface::class);
         $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'e']);
+        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'jws-token']);
 
         $service = new CreateOrderCompletion($httpClientMock);
 
@@ -339,42 +238,13 @@ class CreateOrderCompletionTest extends TestCase
 
     /**
      * @return void
-     * @throws CreateCompletionException
-     * @throws AuthenticationException
-     */
-    public function test_create_completion_throws_when_server_public_is_invalid_json(): void
-    {
-        $authDto = AuthorizationDTO::fromArray([
-            'baseUrl' => 'https://api.test.ua',
-            'merchantId' => 'M-123',
-            'serviceCode' => 'S-1',
-            'authenticationKey' => $this->getTestPrivateKey(),
-            'serverPublic' => 'not-valid-json',
-            'deviceId' => 'dev-1',
-            'refreshToken' => 'ref-1',
-        ]);
-
-        $httpClientMock = $this->createMock(HttpClientInterface::class);
-        $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'e']);
-
-        $service = new CreateOrderCompletion($httpClientMock);
-
-        $this->expectException(CreateCompletionException::class);
-        $this->expectExceptionMessage('Invalid server public key format (JSON error)');
-
-        $service->createCompletion($this->buildCompletionDTO(1000), $authDto, 1000);
-    }
-
-    /**
-     * @return void
      * @throws AuthenticationException
      */
     public function test_create_completion_wraps_unexpected_exception(): void
     {
         $httpClientMock = $this->createMock(HttpClientInterface::class);
         $httpClientMock->method('getCompletionUrl')->willReturn('https://api.test.ua/completion');
-        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'e']);
+        $httpClientMock->method('buildOptionsFromAuthDto')->willReturn(['headers' => [], 'body' => 'jws-token']);
         $httpClientMock->method('request')->willThrowException(
             new RuntimeException('unexpected network failure')
         );

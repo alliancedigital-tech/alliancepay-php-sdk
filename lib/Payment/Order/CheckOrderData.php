@@ -46,6 +46,7 @@ class CheckOrderData
             $this->httpClient->applyRequestId($createOrderRequestId);
             $options = $this->httpClient->buildOptionsFromAuthDto(
                 $authorizationDto,
+                HttpClientInterface::PATH_OPERATIONS,
                 ['hppOrderId' => $hppOrderId]
             );
 
