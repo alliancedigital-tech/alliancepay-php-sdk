@@ -780,3 +780,166 @@ try {
 - **⚠️ `merchantRequestId` НЕ є безпечним ключем для повторного запиту** для `createPlan()`/`createSubscriptionOrder()` — повторний виклик з тим самим значенням після мережевого збою створює **новий об'єкт** на боці банку, а не повертає оригінальний. Не ретраїте ці виклики автоматично без власної дедуплікації.
 - **Ідемпотентність callback-ів** — ведіть облік за `operationId` (не булевим прапорцем "вже оброблено"), інакше перша "бідна" доставка заблокує обробку пізнішої, "багатшої".
 - **Явна обробка статусів** — гілкуйте по всіх відомих статусах (`SUCCESS`/`FAIL`/`PENDING` та інші, включно з paused/invalidated/retry), уникаючи мовчазної гілки за замовчуванням.
+
+___
+
+## 9. Фіскалізація платежів (Alliance Ecom → Alliance Kasa)
+
+SDK дозволяє відправити на фіскалізацію успішну платіжну операцію (PURCHASE) або повернення коштів (REFUND) через
+ендпоінт `POST /ecom/jws/cashbox/v2/fiscalization/create`. Запит підписується JWS (так само, як платіжні запити SDK),
+результат приходить синхронно у відповіді та асинхронно — callback-ом на `notificationUrl`.
+
+**Обмеження SDK (навмисні):**
+- SDK не має власної БД, адмін-панелі та налаштувань — збереження записів фіскалізації, прапорці «Увімкнути фіскалізацію» / «Автоматична фіскалізація», кнопки в адмінці та вибір значень з атрибутів товару реалізує застосунок, що підключає SDK.
+- Фіскалізувати можна лише операцію з фінальним статусом `SUCCESS`; для REFUND оригінальна покупка має бути вже фіскалізована.
+
+### 9.1. Створення запиту на фіскалізацію
+
+Використовуйте `CreateFiscalization` та `FiscalizationRequestDTO`. Потрібен збережений `AuthorizationDTO` (див. розділ 1).
+
+### Поля `FiscalizationRequestDTO`
+
+| Поле | Тип | Обов'язкове | Опис |
+|---|---|---|---|
+| `merchantRequestId` | string | так | Унікальний UUID запиту (`GenerateRequestIdentification::generateRequestId()`) |
+| `merchantId` | string | так | Ідентифікатор мерчанта |
+| `operationId` | string | так | `operationId` успішної операції PURCHASE або REFUND |
+| `receiptComment` | string | ні | Коментар до чека, напр. `PAYMENT_FOR_ORDER_123` |
+| `notificationUrl` | string | **так** | Абсолютний URL обробника callback-ів фіскалізації (див. 9.3) |
+| `products` | array | так | Непорожній список позицій чека |
+
+### Поля `products[]`
+
+| Поле | Тип | Обов'язкове | Опис |
+|---|---|---|---|
+| `id` | string | так | ID або SKU товару |
+| `name` | string | так | Назва позиції |
+| `count` | number | так | Кількість (до 3 знаків після коми) |
+| `measurementCode` | string | так | Код одиниці виміру (типово `"0001"` — штука) |
+| `unitPrice` | float | так | Ціна за одиницю **в гривнях** (не в копійках), з урахуванням знижок |
+| `taxCode` | int | ні | Код податкової групи |
+| `classificationCode` | string | якщо `taxCode` ∈ {2, 7, 8} | Код УКТЗЕД |
+| `exciseLabels` | array\<string\> | якщо `taxCode` ∈ {2, 7, 8} і товар підакцизний | Акцизні марки (передавайте лише непорожній масив) |
+
+> **ВАЖЛИВО:** сума `Σ(count × unitPrice)` має дорівнювати сумі фіскалізованої операції. Знижки розподіляйте по позиціях,
+> залишок від округлення додавайте до останньої позиції. Платну доставку передавайте окремою позицією-послугою.
+> Для REFUND передавайте лише ті позиції й кількості, що повертаються.
+
+### Приклад створення запиту:
+
+```PHP
+use AlliancePay\Sdk\Exceptions\FiscalizationException;
+use AlliancePay\Sdk\Exceptions\ValidateDataException;
+use AlliancePay\Sdk\Payment\Dto\Fiscalization\FiscalizationRequestDTO;
+use AlliancePay\Sdk\Payment\Fiscalization\CreateFiscalization;
+use AlliancePay\Sdk\Services\RequestIdentification\GenerateRequestIdentification;
+
+$request = FiscalizationRequestDTO::fromArray([
+    'merchantRequestId' => GenerateRequestIdentification::generateRequestId(),
+    'merchantId'        => $authDto->getMerchantId(),
+    'operationId'       => 'OPERATION_ID_FROM_PAYMENT', // operationId успішного PURCHASE/REFUND
+    'receiptComment'    => 'PAYMENT_FOR_ORDER_123',
+    'notificationUrl'   => 'https://your-site.com/fiscalization-callback',
+    'products'          => [
+        [
+            'id'                 => 'SKU-1',
+            'name'               => 'Товар 1',
+            'count'              => 2.000,
+            'measurementCode'    => '0001',
+            'unitPrice'          => 120.00,
+            'taxCode'            => 2,
+            'classificationCode' => '2203000000',
+            'exciseLabels'       => ['AATE123456'],
+        ],
+    ],
+]);
+
+try {
+    /** @var \AlliancePay\Sdk\Payment\Dto\Fiscalization\FiscalizationResponseDTO $response */
+    $response = (new CreateFiscalization())->createFiscalization($request, $authDto);
+
+    // Збережіть запис у своїй БД (унікальний ключ — operationId)
+    $data = $response->toArray();
+} catch (ValidateDataException $e) {
+    // Локальна валідація не пройдена — запит до банку не відправлявся
+    echo "Помилка валідації: " . $e->getMessage();
+} catch (FiscalizationException $e) {
+    // Бізнес-помилка API (HTTP 400), мережа, підпис тощо
+    echo $e->getMessage();
+    echo $e->getMsgCode();      // напр. payment_not_found
+    print_r($e->getPayload());
+}
+```
+
+### 9.2. Відповідь (`FiscalizationResponseDTO`)
+
+Ключові поля: `merchantRequestId`, `merchantId`, `operationId`, `operationType` (`PURCHASE` / `REFUND`), `bucketId`,
+`status`, `receiptComment`, `products`, `fiscalNumber`, `receiptUrl`, `fiscalizationDateTime`,
+`fiscalizationModificationDateTime`, `errorCode`, `errorDescription`, `creationDateTime`, `modificationDateTime`.
+
+| Статус | Значення | Дія |
+|---|---|---|
+| `PENDING` | Запит прийнято, чек ще формується | Збережіть запис, очікуйте callback |
+| `SUCCESS` | Чек сформовано | Збережіть `fiscalNumber` та `receiptUrl` |
+| `FAIL` | Помилка фіскалізації | Збережіть `errorCode` / `errorDescription` (напр. `541` — помилка підписання) |
+
+Допоміжні методи: `isPending()`, `isSuccess()`, `isFailed()`, `isFinal()`, `isNewerThan($other)`, а також геттери
+`getFiscalNumber()`, `getReceiptUrl()`, `getErrorCode()`, `getErrorDescription()`, `getStatus()` тощо.
+Дати приходять у форматі ISO 8601 з часовою зоною (`2026-09-03T10:39:09.540+03:00`) і розбираються SDK з її урахуванням.
+
+> **Ідемпотентність:** Ecom ідемпотентний за `operationId` — якщо фіскалізація вже існує, повертаються її актуальні дані,
+> нова не створюється. Повторна відправка після `FAIL` поверне той самий `FAIL`.
+
+### Помилки HTTP 400 (`FiscalizationException::getMsgCode()`)
+
+| msgCode | Значення |
+|---|---|
+| `missing_required_field` | Відсутнє обов'язкове поле (назва — у `msgAttrs`) |
+| `invalid_format` | Поле має невірний формат |
+| `payment_not_found` | Операцію з `operationId` не знайдено |
+| `original_receipt_not_found` | Для REFUND не знайдено оригінальний чек — спочатку фіскалізуйте покупку |
+
+Помилки 400, 5xx, таймаути та невалідний підпис зберігайте у записі фіскалізації з локальним статусом (напр. `ERROR`)
+і не перериваючи флоу оформлення замовлення.
+
+### 9.3. Обробка callback-а фіскалізації
+
+Результат для статусу `PENDING` приходить на `notificationUrl` у вигляді JWS. Використовуйте `FiscalizationCallbackHandler`
+— він перевіряє підпис та повертає `FiscalizationCallbackDTO`.
+
+````PHP
+use AlliancePay\Sdk\Payment\Fiscalization\Callback\FiscalizationCallbackHandler;
+
+try {
+    /** @var \AlliancePay\Sdk\Payment\Dto\Fiscalization\FiscalizationCallbackDTO $callback */
+    $callback = (new FiscalizationCallbackHandler())->handle($authDto);
+
+    /** @var \AlliancePay\Sdk\Payment\Dto\Fiscalization\FiscalizationResponseDTO $fiscalization */
+    $fiscalization = $callback->getFiscalization();
+
+    // Знайдіть запис за operationId (резерв — merchantRequestId) та оновіть його.
+    // Якщо запис вже у фінальному статусі SUCCESS або $fiscalization->isNewerThan($saved) === false — ігноруйте callback.
+
+    http_response_code(200);
+    echo 'OK';
+} catch (\Throwable $e) {
+    // Невалідний підпис або некоректний payload
+    http_response_code(400);
+    echo 'Error';
+}
+````
+
+**Рекомендації:**
+- Обробник має бути доступний без авторизації користувача та CSRF-перевірки, і не кешуватися.
+- **Ідемпотентність:** повторний callback не повинен створювати дублі; фінальний `SUCCESS` не перезаписуйте на `PENDING`; застарілі дані ігноруйте, порівнюючи `modificationDateTime` (`isNewerThan()`).
+- Відповідайте HTTP 200 одразу після обробки, довгі операції виносьте з callback-а.
+- Парсер стійкий до відсутніх полів у payload.
+
+### 9.4. Рекомендації інтегратору
+
+- **Коли відправляти:** після переходу PURCHASE/REFUND у статус `SUCCESS`. Не відправляйте повторно, якщо для `operationId` вже є запис `PENDING` або `SUCCESS`; для оновлення статусу повторіть той самий запит (завдяки ідемпотентності отримаєте актуальні дані).
+- **Збереження:** рекомендована таблиця з унікальними `operation_id` та `merchant_request_id`, полями `operation_type`, `status`, `fiscal_number`, `receipt_url`, `error_code`, `error_description`, датами та `request_payload` / `response_payload` / `callback_payload`.
+- **Значення податкових полів:** вибирайте їх для кожного поля окремо — спочатку атрибут товару, інакше значення за замовчуванням із налаштувань застосунку (`measurementCode` за замовчуванням `"0001"`); якщо `taxCode` ∈ {2, 7, 8} без `classificationCode` — зупиніть відправку.
+- **Ізоляція:** помилка фіскалізації не повинна ламати обробку платежу чи повернення.
+- **Приклади:** готові скрипти — `public/fiscalization.php` (відправка запиту) та `public/fiscalization-callback.php` (callback).
+- **Ключ підпису:** для JWS використовується приватний ключ EC P-256 (алгоритм **ES256**, підпис у форматі R||S); помилка «Key not found or is invalid» зазвичай означає невідповідність алгоритму й типу ключа.

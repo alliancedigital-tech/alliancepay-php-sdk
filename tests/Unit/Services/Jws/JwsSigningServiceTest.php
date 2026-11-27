@@ -110,16 +110,65 @@ class JwsSigningServiceTest extends TestCase
     }
 
     /**
+     * @param string $curve
+     * @return array{0: string, 1: string}
+     */
+    private function generateEcKey(string $curve): array
+    {
+        $resource = openssl_pkey_new(['curve_name' => $curve, 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        openssl_pkey_export($resource, $privatePem);
+
+        return [$privatePem, openssl_pkey_get_details($resource)['key']];
+    }
+
+    /**
      * @return void
      * @throws EncryptionException
      */
-    public function test_sign_throws_when_key_is_not_rsa(): void
+    public function test_sign_uses_es256_for_ec_p256_key(): void
     {
-        $resource = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
-        openssl_pkey_export($resource, $ecPrivateKeyPem);
+        [$privatePem, $publicPem] = $this->generateEcKey('prime256v1');
+        $payload = ['amount' => 1000];
+
+        $token = JwsSigningService::sign($privatePem, 'kid-ec', '/x', $payload);
+
+        $key = KeyFactory::create($publicPem, 'pem');
+        $key->setKeyId('kid-ec');
+        $keySet = new KeySet();
+        $keySet->add($key);
+
+        $jwt = JWT::decode($token, $keySet, 'ES256');
+
+        $this->assertSame($payload, $jwt->getClaims());
+        $this->assertSame('ES256', $jwt->getHeaders()['alg']);
+
+        // JWS ECDSA signature is raw R||S (64 bytes), not ASN.1 DER.
+        $signature = base64_decode(strtr(explode('.', $token)[2], '-_', '+/'));
+        $this->assertSame(64, strlen($signature));
+    }
+
+    /**
+     * @return void
+     * @throws EncryptionException
+     */
+    public function test_sign_throws_for_unsupported_ec_curve(): void
+    {
+        [$privatePem] = $this->generateEcKey('secp384r1');
 
         $this->expectException(EncryptionException::class);
+        $this->expectExceptionMessage('P-256');
 
-        JwsSigningService::sign($ecPrivateKeyPem, 'kid-1', '/x', []);
+        JwsSigningService::sign($privatePem, 'kid-1', '/x', []);
+    }
+
+    /**
+     * @return void
+     * @throws EncryptionException
+     */
+    public function test_sign_throws_for_garbage_pem(): void
+    {
+        $this->expectException(EncryptionException::class);
+
+        JwsSigningService::sign('not-a-pem', 'kid-1', '/x', []);
     }
 }

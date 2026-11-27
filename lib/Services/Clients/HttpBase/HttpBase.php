@@ -79,6 +79,15 @@ class HttpBase
      * @param string $baseUrl
      * @return string
      */
+    public function getFiscalizationCreateUrl(string $baseUrl): string
+    {
+        return $baseUrl . HttpClientInterface::PATH_FISCALIZATION_CREATE;
+    }
+
+    /**
+     * @param string $baseUrl
+     * @return string
+     */
     public function getOperationsUrl(string $baseUrl): string
     {
         return $baseUrl . HttpClientInterface::PATH_OPERATIONS;

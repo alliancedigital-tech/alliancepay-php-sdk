@@ -40,6 +40,8 @@ final class OrderRequestDTO
     private const PROPERTY_HPP_PAGE_ADDITIONAL_INFO = 'hppPageAdditionalInfo';
     private const PROPERTY_PRE_AUTH_EXP_DATE = 'preAuthExpDate';
     private const PROPERTY_CURRENCY_CODE = 'currencyCode';
+    private const PROPERTY_DESIRED_THREE_DS_MODE = 'desiredThreeDSMode';
+    private const PROPERTY_DESIRED_THREE_DS_MODE_ALT = 'desiredThreeDsMode';
 
     public const CURRENCY_UAH = 980;
     public const CURRENCY_USD = 840;
@@ -70,6 +72,8 @@ final class OrderRequestDTO
         private ?array $hppPageAdditionalInfo = null,
         private ?string $preAuthExpDate = null,
         private int $currencyCode = self::CURRENCY_UAH,
+        private ?string $desiredThreeDSMode = null,
+        private string $desiredThreeDSModeKey = self::PROPERTY_DESIRED_THREE_DS_MODE,
     ) {
         if ($this->hppPayType === 'PREAUTH' && $this->preAuthExpDate === null) {
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
@@ -185,6 +189,14 @@ final class OrderRequestDTO
     }
 
     /**
+     * @return string|null
+     */
+    public function getDesiredThreeDSMode(): ?string
+    {
+        return $this->desiredThreeDSMode;
+    }
+
+    /**
      * @param array $orderData
      * @return self
      * @throws ValidateDataException
@@ -192,6 +204,12 @@ final class OrderRequestDTO
     public static function fromArray(array $orderData): self
     {
         $orderData = ValidateOrderData::validateOrderRequiredData($orderData);
+
+        // The key is passed to the bank as supplied (desiredThreeDSMode / desiredThreeDsMode).
+        $threeDsKey = array_key_exists(self::PROPERTY_DESIRED_THREE_DS_MODE_ALT, $orderData)
+            && !isset($orderData[self::PROPERTY_DESIRED_THREE_DS_MODE])
+            ? self::PROPERTY_DESIRED_THREE_DS_MODE_ALT
+            : self::PROPERTY_DESIRED_THREE_DS_MODE;
 
         return new self(
             merchantRequestId: $orderData[self::PROPERTY_MERCHANT_REQUEST_ID],
@@ -220,6 +238,8 @@ final class OrderRequestDTO
             currencyCode: isset($orderData[self::PROPERTY_CURRENCY_CODE])
                 ? (int)$orderData[self::PROPERTY_CURRENCY_CODE]
                 : self::CURRENCY_UAH,
+            desiredThreeDSMode: $orderData[$threeDsKey] ?? null,
+            desiredThreeDSModeKey: $threeDsKey,
         );
     }
 
@@ -250,6 +270,7 @@ final class OrderRequestDTO
             self::PROPERTY_GENERATE_QR_NBU => $this->generateQrNbu,
             self::PROPERTY_HPP_PAGE_ADDITIONAL_INFO => $this->hppPageAdditionalInfo,
             self::PROPERTY_PRE_AUTH_EXP_DATE => $this->preAuthExpDate,
+            $this->desiredThreeDSModeKey => $this->desiredThreeDSMode,
         ];
 
         if ($this->currencyCode !== self::CURRENCY_UAH) {

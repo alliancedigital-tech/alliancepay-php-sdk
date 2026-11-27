@@ -24,6 +24,7 @@ interface HttpClientInterface
     public const PATH_OPERATIONS = '/ecom/jws/payments/hpp/operations_v1';
     public const PATH_REFUND = '/ecom/jws/payments/refund_v1';
     public const PATH_COMPLETION = '/ecom/jws/payments/preauth/completion_v1';
+    public const PATH_FISCALIZATION_CREATE = '/ecom/jws/cashbox/v2/fiscalization/create';
     public const PATH_PUBLIC_KEY = '/ecom/keys/public_key/get_v1';
 
     public const PATH_CREATE_PLAN = '/ecom/jws/scheduled_payments/plan/create_v1';
@@ -72,6 +73,12 @@ interface HttpClientInterface
      * @return string
      */
     public function getRefundUrl(string $baseUrl): string;
+
+    /**
+     * @param string $baseUrl
+     * @return string
+     */
+    public function getFiscalizationCreateUrl(string $baseUrl): string;
 
     /**
      * @param string $baseUrl

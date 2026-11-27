@@ -492,4 +492,37 @@ class OrderDtoTest extends TestCase
         $this->assertContains(OrderRequestDTO::CURRENCY_EUR, $supportedCurrencies);
         $this->assertCount(3, $supportedCurrencies);
     }
+
+    /**
+     * @return void
+     * @throws ValidateDataException
+     */
+    public function test_desired_three_ds_mode_is_passed_to_payload_and_omitted_when_absent(): void
+    {
+        $data = [
+            'merchantRequestId' => 'REQ-3DS',
+            'merchantId' => 'M-777',
+            'hppPayType' => 'PURCHASE',
+            'directType' => 'REDIRECT',
+            'coinAmount' => 1000,
+            'paymentMethods' => ['CARD'],
+            'successUrl' => 'https://site.com/success',
+            'failUrl' => 'https://site.com/fail',
+            'statusPageType' => 'REDIRECT',
+            'customerData' => ['senderCustomerId' => 'id_1'],
+        ];
+
+        $without = OrderRequestDTO::fromArray($data);
+        $this->assertNull($without->getDesiredThreeDSMode());
+        $this->assertArrayNotHasKey('desiredThreeDSMode', $without->toArray());
+
+        $with = OrderRequestDTO::fromArray($data + ['desiredThreeDSMode' => 'MUST_NOT']);
+        $this->assertSame('MUST_NOT', $with->getDesiredThreeDSMode());
+        $this->assertSame('MUST_NOT', $with->toArray()['desiredThreeDSMode']);
+
+        $alt = OrderRequestDTO::fromArray($data + ['desiredThreeDsMode' => 'MUST_NOT']);
+        $this->assertSame('MUST_NOT', $alt->getDesiredThreeDSMode());
+        $this->assertSame('MUST_NOT', $alt->toArray()['desiredThreeDsMode']);
+        $this->assertArrayNotHasKey('desiredThreeDSMode', $alt->toArray());
+    }
 }

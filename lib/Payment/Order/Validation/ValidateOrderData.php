@@ -52,6 +52,8 @@ class ValidateOrderData
         'paymentCategoryGoal',
         'generateQrNbu',
         'hppPageAdditionalInfo',
+        'desiredThreeDSMode',
+        'desiredThreeDsMode',
     ];
 
     // Kept for backwards compatibility
@@ -203,6 +205,14 @@ class ValidateOrderData
             'type' => 'int',
             'required' => false,
             'enum' => [980, 840, 978],
+        ],
+        'desiredThreeDSMode' => [
+            'type' => 'string',
+            'required' => false,
+        ],
+        'desiredThreeDsMode' => [
+            'type' => 'string',
+            'required' => false,
         ],
         'customerData' => [
             'type' => 'array',
